@@ -14,7 +14,7 @@ type StatsData = {
   advancements: { name: string; at: string }[];
 };
 
-const TIER_NAME: Record<Tier, string> = { F: 'Wood', E: 'Stone', D: 'Iron', C: 'Gold', B: 'Emerald', A: 'Diamond', S: 'Netherite', SS: 'Prismatic', SSS: 'Dragon' };
+const TIER_NAME: Record<Tier, string> = { F: 'Wood', E: 'Stone', D: 'Iron', C: 'Emerald', B: 'Gold', A: 'Diamond', S: 'Obsidian', SS: 'Prismatic', SSS: 'Majestic' };
 const sum = (o: Record<string, number>) => Object.values(o).reduce((a, b) => a + b, 0);
 const n = (v: number) => v.toLocaleString('en');
 const when = (iso: string) => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
