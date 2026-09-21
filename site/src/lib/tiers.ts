@@ -1,4 +1,4 @@
-// Card tiers, from plain wood (F) to the animated holographic SSS.
+// Card tiers: Wood F, Stone E, Iron D, Emerald C, Gold B, Diamond A, Obsidian S, Prismatic SS, Majestic SSS.
 export const TIERS = ['F', 'E', 'D', 'C', 'B', 'A', 'S', 'SS', 'SSS'] as const;
 export type Tier = (typeof TIERS)[number];
 

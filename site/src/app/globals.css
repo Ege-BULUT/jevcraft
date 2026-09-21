@@ -36,10 +36,10 @@ body {
 
 .tier-E { --a: #5e6268; --b: #8d9299; --edge: #3d4045; }
 .tier-D { --a: #b8c0ca; --b: #eef1f5; --edge: #7c8691; --ink: #1d232b; }
-.tier-C { --a: #c48a0f; --b: #f5d76e; --edge: #8a5e06; --ink: #2b1d00; }
-.tier-B { --a: #0b7a43; --b: #3fd07e; --edge: #06502b; }
+.tier-C { --a: #0b7a43; --b: #3fd07e; --edge: #06502b; }
+.tier-B { --a: #c48a0f; --b: #f5d76e; --edge: #8a5e06; --ink: #2b1d00; }
 .tier-A { --a: #1a93a0; --b: #9ff3f6; --edge: #0d5d66; --ink: #04262a; }
-.tier-S { --a: #2c2236; --b: #6b3fa0; --edge: #1a1320; }
+.tier-S { --a: #07050c; --b: #2a1740; --edge: #120a1f; } /* obsidian: black volcanic glass with a violet sheen */
 .tier-SS { --a: #3a1d5c; --b: #1d6f8a; --edge: #120a1f; }
 .tier-SSS { --a: #1a0b2e; --b: #4c0d3a; --edge: #f5c542; box-shadow: 0 0 28px #f5c54288, 0 10px 24px #0008; }
 
@@ -84,10 +84,10 @@ body {
 .pk-wrap { position: relative; isolation: isolate; }
 .pk-wrap::before, .pk-wrap::after { content: none; position: absolute; pointer-events: none; z-index: -1; }
 
-/* B: an emerald-and-silver frame instead of a flat one. */
+/* B (gold): a gold-and-silver frame instead of a flat one. */
 .tier-B.pk-card { border-color: transparent;
   background: linear-gradient(155deg, var(--a), var(--b)) padding-box,
-    linear-gradient(135deg, #f2fff8, #6ff0a8, #c9d1d9, #2fbf71, #f2fff8) border-box; }
+    linear-gradient(135deg, #fffbe8, #ffd24a, #d9dde2, #b8860b, #fffbe8) border-box; }
 
 /* A: a spinning gold frame, an aggressive glow, and the card lifts off the table and hovers. */
 .tier-A.pk-card, .tier-S.pk-card, .tier-SS.pk-card, .tier-SSS.pk-card { border-color: transparent; animation: pk-spin 3s linear infinite; }
