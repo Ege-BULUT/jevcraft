@@ -26,7 +26,7 @@ export function statTier(kind: string, value: number): Tier {
 // VoxeLibre's advancements by how far into the game they are.
 const ADVANCEMENT_TIER: Record<string, Tier> = {
   'Getting Wood': 'F', 'Benchmarking': 'F', 'Time to Mine!': 'F',
-  'Hot Topic': 'E', 'Time to Farm!': 'E', 'Time to Strike!': 'E', 'Getting an Upgrade': 'E', 'Delicious Fish': 'E',
+  'Hot Topic': 'E', 'Time to Farm!': 'E', 'Time to Strike!': 'E', 'Getting an Upgrade': 'E', 'Stone Age': 'E', 'Delicious Fish': 'E',
   'Pork Chop': 'E', 'Rabbit Season': 'E', 'Cow Tipper': 'E', 'Bake Bread': 'E',
   'Acquire Hardware': 'D', "Isn't It Iron Pick": 'D', 'The Lie': 'D', 'On A Rail': 'D', 'Sweet Dreams': 'D', 'Pot Planter': 'D',
   'Wax On': 'D', 'Wax Off': 'D', 'Librarian': 'D', 'Dispense With This': 'D', 'Tactical Fishing': 'D', 'Fishy Business': 'D',
