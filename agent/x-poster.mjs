@@ -193,6 +193,20 @@ async function tick() {
   if (fresh.length) appendFileSync(EVENTS, fresh.map((e) => JSON.stringify(e)).join('\n') + '\n');
   save();
   if (!state.start) return;
+  if (state.pending) { // a stored report whose post failed: retry the post only, never store it twice
+    if (Date.now() < (state.retryAt ?? 0)) return;
+    const r = await x('POST', 'https://api.x.com/2/tweets', { text: state.pending.text });
+    if (r.status !== 201) {
+      state.retryAt = Date.now() + (r.status === 402 || r.status === 429 ? 30 : 5) * 60_000; // 402: no API credits
+      save();
+      throw new Error(`post of report ${state.pending.id} failed ${r.status} ${JSON.stringify(r.json).slice(0, 160)}; retrying later`);
+    }
+    await site('PATCH', { id: state.pending.id, tweet_id: r.json.data.id });
+    console.log(`[x] report ${state.pending.id} posted as ${r.json.data.id}`);
+    state.pending = null; state.retryAt = null;
+    save();
+    return;
+  }
   const from = state.lastReport ?? state.start;
   const to = new Date(Date.parse(from) + WINDOW).toISOString();
   if (Date.now() < Date.parse(to) + 5 * 60_000) return; // wait until the window's recording is online
@@ -201,10 +215,10 @@ async function tick() {
     if (LIVE) {
       const { id } = await site('POST', { data: report });
       if (!id) throw new Error('the site did not store the report');
-      const r = await x('POST', 'https://api.x.com/2/tweets', { text: tweet(report, `${SITE}/?report=${id}`) });
-      if (r.status !== 201) throw new Error(`post failed ${r.status} ${JSON.stringify(r.json).slice(0, 200)}`);
-      await site('PATCH', { id, tweet_id: r.json.data.id });
-      console.log(`[x] report ${id} posted as ${r.json.data.id}`);
+      state.pending = { id, text: tweet(report, `${SITE}/?report=${id}`) }; // posted on this tick or retried
+      state.lastReport = to;
+      save();
+      return tick();
     } else {
       appendFileSync(DRAFTS, `---- ${new Date().toISOString()}\n${tweet(report, `${SITE}/?report=N`)}\n`);
       console.log('[x] report drafted');
