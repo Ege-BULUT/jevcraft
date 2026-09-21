@@ -2,7 +2,7 @@
 // with a link to it.
 //
 //   node agent/x-poster.mjs            drafts only: appends to run/x-drafts.txt, posts nothing
-//   X_LIVE=1 node agent/x-poster.mjs   stores the report on the site and posts it on X
+//   X_LIVE=1 node agent/x-poster.mjs   stores the report on the site and shares it (see share())
 //   node agent/x-poster.mjs preview    prints the report for the last two hours of the log so far
 //   node agent/x-poster.mjs whoami     checks the X credentials
 //
@@ -187,22 +187,67 @@ const site = (method, body) => fetch(`${SITE}/api/report`, {
   method, headers: { 'x-jevcraft-key': key('jevcraft-key'), 'content-type': 'application/json' }, body: JSON.stringify(body),
 }).then((r) => r.json());
 
+// Sharing without paid API credits. X: a notification that opens the post prefilled (one click
+// on Post; X_MODE=api posts through the paid API instead). Bluesky and Mastodon: posted directly,
+// when their tokens are in the keychain.
+const has = (s) => { try { key(s); return true; } catch { return false; } };
+
+async function share(p) {
+  const run = async (channel, fn) => {
+    if (p.done[channel] !== false) return;
+    try { await fn(); p.done[channel] = true; console.log(`[share] report ${p.id} on ${channel}`); }
+    catch (e) { console.log(`[share] ${channel} failed: ${e.message}`); }
+  };
+  await run('x', async () => {
+    if (process.env.X_MODE === 'api') {
+      const r = await x('POST', 'https://api.x.com/2/tweets', { text: p.text });
+      if (r.status !== 201) throw new Error(`${r.status} ${JSON.stringify(r.json).slice(0, 160)}`);
+      await site('PATCH', { id: p.id, tweet_id: r.json.data.id });
+      return;
+    }
+    const intent = `https://x.com/intent/post?text=${encodeURIComponent(p.text)}`;
+    appendFileSync(`${ROOT}run/x-intents.txt`, `${new Date().toISOString()} report ${p.id}\n${intent}\n`);
+    execFileSync('terminal-notifier', ['-title', 'JevCraft', '-subtitle', 'Status update ready', '-message', 'Click to post it on X',
+      '-open', intent, '-sound', 'Glass', '-group', `jevcraft-${p.id}`]);
+  });
+  await run('bsky', async () => {
+    const pds = 'https://bsky.social/xrpc';
+    const post = (path, body, headers = {}) => fetch(`${pds}/${path}`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) })
+      .then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(`${path} ${r.status} ${JSON.stringify(j).slice(0, 120)}`); return j; });
+    const session = await post('com.atproto.server.createSession', { identifier: key('bsky-handle'), password: key('bsky-app-password') });
+    const auth = { authorization: `Bearer ${session.accessJwt}` };
+    const card = await fetch(`${SITE}/api/og?report=${p.id}`).then((r) => r.arrayBuffer());
+    const thumb = await fetch(`${pds}/com.atproto.repo.uploadBlob`, { method: 'POST', headers: { ...auth, 'content-type': 'image/png' }, body: Buffer.from(card) }).then((r) => r.json());
+    const text = p.text, start = Buffer.from(text).indexOf(Buffer.from(p.link)); // facets count UTF-8 bytes
+    await post('com.atproto.repo.createRecord', { repo: session.did, collection: 'app.bsky.feed.post', record: {
+      $type: 'app.bsky.feed.post', text, createdAt: new Date().toISOString(),
+      facets: start < 0 ? [] : [{ index: { byteStart: start, byteEnd: start + Buffer.byteLength(p.link) }, features: [{ $type: 'app.bsky.richtext.facet#link', uri: p.link }] }],
+      embed: { $type: 'app.bsky.embed.external', external: { uri: p.link, title: 'JevCraft status update', description: 'What Jev did in the block world in the last two hours.', thumb: thumb.blob } },
+    } }, auth);
+  });
+  await run('mastodon', async () => {
+    const r = await fetch(`https://${key('mastodon-instance')}/api/v1/statuses`, { method: 'POST',
+      headers: { authorization: `Bearer ${key('mastodon-token')}`, 'content-type': 'application/json' }, body: JSON.stringify({ status: p.text }) });
+    if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 120)}`);
+  });
+  save();
+}
+
 async function tick() {
   if (!existsSync(LOG)) return;
   const fresh = parse(readNewLines());
   if (fresh.length) appendFileSync(EVENTS, fresh.map((e) => JSON.stringify(e)).join('\n') + '\n');
   save();
   if (!state.start) return;
-  if (state.pending) { // a stored report whose post failed: retry the post only, never store it twice
+  if (state.pending) { // a stored report still to be shared; each channel is retried on its own
     if (Date.now() < (state.retryAt ?? 0)) return;
-    const r = await x('POST', 'https://api.x.com/2/tweets', { text: state.pending.text });
-    if (r.status !== 201) {
-      state.retryAt = Date.now() + (r.status === 402 || r.status === 429 ? 30 : 5) * 60_000; // 402: no API credits
+    await share(state.pending);
+    const open = Object.entries(state.pending.done).filter(([, ok]) => !ok).map(([c]) => c);
+    if (open.length && Date.now() - state.pending.at < 6 * 3_600_000) {
+      state.retryAt = Date.now() + 15 * 60_000;
       save();
-      throw new Error(`post of report ${state.pending.id} failed ${r.status} ${JSON.stringify(r.json).slice(0, 160)}; retrying later`);
+      throw new Error(`report ${state.pending.id}: ${open.join(', ')} not shared yet; retrying in 15 min`);
     }
-    await site('PATCH', { id: state.pending.id, tweet_id: r.json.data.id });
-    console.log(`[x] report ${state.pending.id} posted as ${r.json.data.id}`);
     state.pending = null; state.retryAt = null;
     save();
     return;
@@ -215,7 +260,8 @@ async function tick() {
     if (LIVE) {
       const { id } = await site('POST', { data: report });
       if (!id) throw new Error('the site did not store the report');
-      state.pending = { id, text: tweet(report, `${SITE}/?report=${id}`) }; // posted on this tick or retried
+      const channels = { x: false, ...(has('bsky-app-password') && { bsky: false }), ...(has('mastodon-token') && { mastodon: false }) };
+      state.pending = { id, at: Date.now(), link: `${SITE}/?report=${id}`, text: tweet(report, `${SITE}/?report=${id}`), done: channels };
       state.lastReport = to;
       save();
       return tick();
