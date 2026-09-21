@@ -11,7 +11,6 @@ set -u
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 RUN="$ROOT/run"
 WORLD="$HOME/Library/Application Support/minetest/worlds/jevcraft"
-LUANTI=/Applications/luanti.app/Contents/MacOS/luanti
 HF_REPO=${HF_REPO:?set HF_REPO=<hf user>/jevcraft}
 DECIDE_URL=${DECIDE_URL:-https://jevcraft.vercel.app/api/decide}
 mkdir -p "$RUN/segments"
@@ -36,7 +35,9 @@ while true; do
   if ! pgrep -f "luanti --config $RUN/client.conf" >/dev/null; then
     log "starting the game"
     write_config
-    "$LUANTI" --config "$RUN/client.conf" --go --world "$WORLD" --name Jev --password "" >> "$RUN/luanti.log" 2>&1 &
+    # -g: never bring the game to the foreground; it lives on its own Space (Dock > Options > Assign To).
+    open -g -n -a /Applications/luanti.app --args --config "$RUN/client.conf" --logfile "$RUN/luanti.log" \
+      --go --world "$WORLD" --name Jev --password ""
   fi
   if ! pgrep -f "jevcraft-recorder $RUN/segments" >/dev/null; then
     log "starting the recorder"
