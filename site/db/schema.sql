@@ -55,3 +55,14 @@ grant select (id, at, name, body) on jc_chat to anon, authenticated;
 do $$ begin
   alter publication supabase_realtime add table jc_chat (id, at, name, body);
 exception when duplicate_object then null; end $$;
+
+-- Two-hourly status reports, written by the poster on the game machine through /api/report.
+create table if not exists jc_reports (
+  id       bigserial primary key,
+  at       timestamptz not null default now(),
+  data     jsonb not null,   -- window, stats, advancements, moments, biggest moment
+  tweet_id text
+);
+alter table jc_reports enable row level security;
+drop policy if exists "public read" on jc_reports;
+create policy "public read" on jc_reports for select using (true);

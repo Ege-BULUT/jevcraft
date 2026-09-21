@@ -40,7 +40,7 @@ export function Chat() {
 
   return (
     <section className="flex h-[420px] flex-col rounded-2xl border border-white/10 bg-black/40">
-      <h2 className="border-b border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">Live chat</h2>
+      <h2 className="border-b border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">Live chat <span className="normal-case tracking-normal text-zinc-600">· times in GMT+3</span></h2>
       <div ref={list} className="flex-1 space-y-1.5 overflow-y-auto px-4 py-3 text-sm">
         {messages.length === 0 && <p className="text-zinc-500">No messages yet. Say hi to Jev.</p>}
         {messages.map((m) => (

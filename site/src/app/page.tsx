@@ -1,5 +1,6 @@
 import { Chat } from '@/components/Chat';
 import { NowPlaying } from '@/components/NowPlaying';
+import { Reports } from '@/components/Reports';
 import { Watch } from '@/components/Watch';
 import { HF_REPO, listSegments } from '@/lib/segments';
 
@@ -7,7 +8,7 @@ export const revalidate = 15;
 
 export default async function Home({ searchParams }: PageProps<'/'>) {
   const segments = await listSegments();
-  const { t } = await searchParams; // ?t=<ISO time>: open the recording at that moment (links in posts)
+  const { t, report } = await searchParams; // ?t=<ISO time>: that moment of the recording; ?report=<id>: that status update
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 md:px-8">
       <section className="max-w-3xl">
@@ -26,6 +27,7 @@ export default async function Home({ searchParams }: PageProps<'/'>) {
       <NowPlaying />
       <Watch initial={segments} at={typeof t === 'string' ? t : undefined} />
       <Chat />
+      <Reports open={typeof report === 'string' && /^\d+$/.test(report) ? Number(report) : undefined} />
       <p className="text-xs text-zinc-600">
         Recordings: <a className="underline" href={`https://huggingface.co/datasets/${HF_REPO}`}>huggingface.co/datasets/{HF_REPO}</a> (CC BY-SA 4.0).
         Not affiliated with Mojang, Microsoft or TypeSafe AI. Gaps mean the game was paused while its machine was offline.

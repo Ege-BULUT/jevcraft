@@ -1,11 +1,14 @@
-// Turns what happens in the game into posts on X, each linking to that moment of the recording.
+// Every two hours: a status report of what Jev did in the game, stored on the site and posted on X
+// with a link to it.
 //
 //   node agent/x-poster.mjs            drafts only: appends to run/x-drafts.txt, posts nothing
-//   X_LIVE=1 node agent/x-poster.mjs   posts for real
+//   X_LIVE=1 node agent/x-poster.mjs   stores the report on the site and posts it on X
+//   node agent/x-poster.mjs preview    prints the report for the last two hours of the log so far
+//   node agent/x-poster.mjs whoami     checks the X credentials
 //
-// Highlights come from the game log (death messages, the first success of each notable skill,
-// the first of each ore), so every post states only what actually happened. At most one post per
-// MIN_GAP; highlights in between are gathered into it. Keys are read from the macOS keychain.
+// Everything in a report is counted from the game log (digs, placements, deaths and their cause,
+// kills, crafted items, advancements, positions) and from the time of day in Jev's decisions, so a
+// post states only what happened. Keys come from the macOS keychain.
 import { createHmac, randomBytes } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync, appendFileSync, statSync, openSync, readSync, closeSync } from 'node:fs';
@@ -13,94 +16,157 @@ import { readFileSync, writeFileSync, existsSync, appendFileSync, statSync, open
 const ROOT = new URL('..', import.meta.url).pathname;
 const LOG = `${ROOT}run/luanti.log`;
 const STATE = `${ROOT}run/x-state.json`;
+const EVENTS = `${ROOT}run/x-events.jsonl`;
 const DRAFTS = `${ROOT}run/x-drafts.txt`;
 const SITE = 'https://jevcraft.vercel.app';
 const LIVE = process.env.X_LIVE === '1';
-const MIN_GAP = 90 * 60_000;      // between posts
-const DEATH_GAP = 45 * 60_000;    // a death may go out sooner
-const TZ = 'Europe/Istanbul';
+const WINDOW = 2 * 3_600_000;
+const TZ = 'Europe/Istanbul'; // shown as GMT+3
 
-const FIRSTS = {
-  gather_wood: 'chopped its first logs',
-  craft_crafting_table: 'built its first crafting table',
-  craft_wooden_tools: 'made wooden tools',
-  craft_stone_tools: 'upgraded to stone tools',
-  craft_furnace: 'built a furnace',
-  craft_iron_tools: 'forged iron tools',
-  build_shelter: 'built its first shelter',
-  hunt_food: 'hunted its first meal',
-  fight_hostile: 'won its first fight',
-  craft_bed: 'crafted a bed',
-  sleep: 'slept through its first night',
-  farm: 'planted its first farm',
-  trade_with_villager: 'traded with a villager',
-  build_nether_portal: 'built a Nether portal',
+const MILESTONES = {
+  gather_wood: 'chopped its first logs', craft_crafting_table: 'built its first crafting table',
+  craft_wooden_tools: 'made wooden tools', craft_stone_tools: 'upgraded to stone tools', craft_furnace: 'built a furnace',
+  craft_iron_tools: 'forged iron tools', build_shelter: 'built its first shelter', hunt_food: 'hunted its first meal',
+  fight_hostile: 'won its first fight', craft_bed: 'crafted a bed', sleep: 'slept through a night', farm: 'planted a farm',
+  trade_with_villager: 'traded with a villager', build_nether_portal: 'built a Nether portal',
 };
+const CRAFTED = /(planks|stick|pickaxe|axe|sword|shovel|hoe|crafting table|furnace|torch|bed|bread|chest|door|helmet|chestplate|leggings|boots|bucket|ladder|boat|shield|bow|arrow)$/;
 const ORES = { coal: 'dug up its first coal', iron: 'found iron ore', gold: 'found gold', diamond: 'found DIAMONDS', emerald: 'found an emerald' };
+// Rank for "biggest moment": rarer and later-game first.
+const WEIGHT = { 'found DIAMONDS': 100, 'built a Nether portal': 95, 'traded with a villager': 60, 'forged iron tools': 50,
+  'found an emerald': 45, 'found gold': 40, 'slept through a night': 35, 'crafted a bed': 30, 'found iron ore': 25 };
 
 const state = existsSync(STATE) ? JSON.parse(readFileSync(STATE, 'utf8'))
-  : { offset: Number(process.env.X_FROM_OFFSET ?? 0), seen: [], pending: [], lastPost: 0, deaths: 0, start: null };
+  : { offset: Number(process.env.X_FROM_OFFSET ?? 0), seen: [], start: null, lastReport: null };
 const save = () => writeFileSync(STATE, JSON.stringify(state, null, 1));
 
-// Log lines look like "2026-09-21 13:17:56: ACTION[Main]: CHAT: Jev was slain by Zombie".
 function readNewLines() {
   const size = statSync(LOG).size;
-  if (size < state.offset) state.offset = 0; // log rotated
+  if (size < state.offset) state.offset = 0;
   const fd = openSync(LOG, 'r');
   const buf = Buffer.alloc(size - state.offset);
   readSync(fd, buf, 0, buf.length, state.offset);
   closeSync(fd);
   const text = buf.toString('utf8');
-  const end = text.lastIndexOf('\n') + 1; // keep a half-written last line for next time
+  const end = text.lastIndexOf('\n') + 1; // a half-written last line waits for the next read
   state.offset += Buffer.byteLength(text.slice(0, end));
   return text.slice(0, end).split('\n').filter(Boolean);
 }
 
-function highlights(lines) {
+// One compact event per interesting log line; appended to run/x-events.jsonl.
+function parse(lines) {
   const out = [];
   for (const line of lines) {
     const m = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}): (.*)$/.exec(line);
     if (!m) continue;
-    const at = new Date(`${m[1].replace(' ', 'T')}+03:00`).toISOString(); // the Mac's local time, Istanbul
-    const body = m[2];
+    const at = new Date(`${m[1].replace(' ', 'T')}+03:00`).toISOString(); // the game machine logs GMT+3
+    const b = m[2];
     state.start ??= at;
+    const pos = /\((-?\d+),(-?\d+),(-?\d+)\)/.exec(b);
+    const p = pos && pos.slice(1).map(Number);
     let d;
-    if ((d = /CHAT: Jev (was slain by .+|drowned.*|fell .+|died.*|burned.*|was blown up.*|suffocated.*|starved.*|was shot.*)$/.exec(body))) {
-      state.deaths++;
-      out.push({ at, kind: 'death', text: d[1].replace(/\.$/, '').replace(/^was /, ''), n: state.deaths });
-    } else if ((d = /\[jev_agent\] skill (\w+) succeeded: (.*)$/.exec(body))) {
+    if ((d = /CHAT: Jev (was slain by .+|was shot by .+|was killed by .+|drowned.*|fell .+|burned.*|was blown up.*|suffocated.*|starved.*|tried to swim in lava.*|died.*)$/.exec(b))) {
+      out.push({ at, k: 'death', v: d[1].replace(/\.$/, '').replace(/^was /, '') });
+    } else if ((d = /CHAT: Jev has made the advancement \[(.+)\]/.exec(b))) {
+      out.push({ at, k: 'adv', v: d[1] });
+    } else if (/: Jev digs /.test(b)) {
+      out.push({ at, k: 'dig', p });
+    } else if (/: Jev places node /.test(b)) {
+      out.push({ at, k: 'place', p });
+    } else if (/\[jev_agent\] respawned at/.test(b)) {
+      out.push({ at, k: 'respawn', p });
+    } else if ((d = /\[jev_agent\] skill (\w+) succeeded: (.*)$/.exec(b))) {
       const [, skill, msg] = d;
-      if (FIRSTS[skill] && !state.seen.includes(skill)) { state.seen.push(skill); out.push({ at, kind: 'first', text: FIRSTS[skill] }); }
-      if (skill === 'mine_ores') for (const [ore, text] of Object.entries(ORES)) {
-        if (msg.includes(ore) && !state.seen.includes(`ore:${ore}`)) { state.seen.push(`ore:${ore}`); out.push({ at, kind: 'first', text }); }
+      const kill = /killed ([a-z ]+?)(?: \[|$)/.exec(msg);
+      if (kill) out.push({ at, k: 'kill', v: kill[1].trim() });
+      if (skill.startsWith('craft_')) {
+        // Craft skills also pick up whatever they dig on the way; count only made things.
+        for (const [, n, item] of msg.matchAll(/\+(\d+) ([a-z][a-z ]*?)(?=,|\])/g)) if (CRAFTED.test(item)) out.push({ at, k: 'craft', v: item.trim(), n: Number(n) });
       }
+      if (MILESTONES[skill] && !state.seen.includes(skill)) { state.seen.push(skill); out.push({ at, k: 'milestone', v: MILESTONES[skill] }); }
+      if (skill === 'mine_ores') for (const [ore, text] of Object.entries(ORES)) {
+        if (msg.includes(ore) && !state.seen.includes(`ore:${ore}`)) { state.seen.push(`ore:${ore}`); out.push({ at, k: 'milestone', v: text }); }
+      }
+      if (p) out.push({ at, k: 'pos', p });
     }
   }
   return out;
 }
 
+const loadEvents = () => existsSync(EVENTS) ? readFileSync(EVENTS, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
 const clock = (iso) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
-const hourOfRun = (iso) => Math.floor((Date.parse(iso) - Date.parse(state.start)) / 3_600_000) + 1;
-const tweetLength = (s) => s.replace(/https?:\/\/\S+/g, 'x'.repeat(23)).length; // X counts every link as 23
+const tally = (list) => list.reduce((m, v) => ({ ...m, [v]: (m[v] ?? 0) + 1 }), {});
+const top = (obj, n) => Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, n);
 
-// A post lists the milestones one per line; deaths in the same post are summed up in one line.
-function compose(events) {
-  const lead = events[0];
-  const link = `${SITE}/?t=${lead.at}`;
-  const head = `Hour ${hourOfRun(lead.at)} of Jev playing a block world, live and unattended:`;
-  const tail = `\n\n▶ Watch from ${clock(lead.at)} (Istanbul): ${link}\n#AI #VoxeLibre`;
-  const render = (list) => {
-    const deaths = list.filter((e) => e.kind === 'death');
-    const causes = Object.entries(deaths.reduce((m, e) => ({ ...m, [e.text]: (m[e.text] ?? 0) + 1 }), {}))
-      .sort((a, b) => b[1] - a[1]).map(([c, n]) => (n > 1 ? `${n}× ${c}` : c)).join(', ');
-    const lines = list.filter((e) => e.kind !== 'death').map((e) => [e.at, `• ${clock(e.at)} ${e.text}`]);
-    if (deaths.length === 1) lines.push([deaths[0].at, `• ${clock(deaths[0].at)} died: ${causes}`]);
-    if (deaths.length > 1) lines.push([deaths[0].at, `• ${clock(deaths[0].at)}–${clock(deaths.at(-1).at)} died ${deaths.length}×: ${causes}`]);
-    return `${head}\n${lines.sort((a, b) => a[0].localeCompare(b[0])).map((l) => l[1]).join('\n')}${tail}`;
+// In-game days from the time of day in Jev's decisions: each wrap past midnight starts a new day.
+async function gameDays(to) {
+  const env = readFileSync(`${ROOT}site/.env.local`, 'utf8');
+  const get = (k) => new RegExp(`^${k}="?([^"\\n]+)`, 'm').exec(env)?.[1];
+  const url = `${get('NEXT_PUBLIC_SUPABASE_URL')}/rest/v1/jc_decisions?select=snapshot&at=gte.${state.start}&at=lt.${to}&order=at`;
+  const r = await fetch(url, { headers: { apikey: get('NEXT_PUBLIC_SUPABASE_ANON_KEY') } }).catch(() => null);
+  const rows = r?.ok ? await r.json() : [];
+  let days = 1, prev = null;
+  for (const { snapshot } of rows) {
+    const t = snapshot?.time_of_day;
+    if (typeof t === 'number') { if (prev !== null && t < prev - 0.5) days++; prev = t; }
+  }
+  return days;
+}
+
+async function buildReport(from, to) {
+  const ev = loadEvents().filter((e) => e.at >= from && e.at < to);
+  const of = (k) => ev.filter((e) => e.k === k);
+  // Distance: straight lines between consecutive known positions, skipping respawn teleports.
+  let dist = 0, last = null;
+  for (const e of ev) {
+    if (!e.p) continue;
+    if (e.k === 'respawn') { last = e.p; continue; }
+    if (last) { const d = Math.hypot(e.p[0] - last[0], e.p[1] - last[1], e.p[2] - last[2]); if (d < 80) dist += d; }
+    last = e.p;
+  }
+  const crafts = of('craft').reduce((m, e) => ({ ...m, [e.v]: (m[e.v] ?? 0) + e.n }), {});
+  const moments = [...of('milestone'), ...of('death').map((e) => ({ ...e, v: `died: ${e.v}` })), ...of('adv').map((e) => ({ ...e, v: `advancement “${e.v}”` }))]
+    .sort((a, b) => a.at.localeCompare(b.at)).map((e) => ({ at: e.at, text: e.v }));
+  const ranked = of('milestone').sort((a, b) => (WEIGHT[b.v] ?? 10) - (WEIGHT[a.v] ?? 10));
+  const hour = (iso) => Math.floor((Date.parse(iso) - Date.parse(state.start)) / 3_600_000);
+  return {
+    from, to, hours: [hour(from) + 1, Math.max(hour(from) + 1, hour(to))], day: await gameDays(to),
+    stats: {
+      deaths: of('death').length, causes: tally(of('death').map((e) => e.v)), distance_m: Math.round(dist),
+      dug: of('dig').length, placed: of('place').length, crafts, crafted: Object.values(crafts).reduce((a, b) => a + b, 0),
+      kills: tally(of('kill').map((e) => e.v)),
+    },
+    advancements: of('adv').map((e) => e.v),
+    moments,
+    biggest: ranked[0] ? { at: ranked[0].at, text: ranked[0].v } : moments[0] ?? null,
   };
-  let used = 1;
-  while (used < events.length && tweetLength(render(events.slice(0, used + 1))) <= 280) used++;
-  return { text: render(events.slice(0, used)), used };
+}
+
+const tweetLength = (s) => s.replace(/https?:\/\/\S+/g, 'x'.repeat(23)).length; // X counts a link as 23
+
+// The post: the numbers first, then advancements and the biggest moment while they fit in 280.
+function tweet(r, link) {
+  const s = r.stats, kills = Object.values(s.kills).reduce((a, b) => a + b, 0);
+  const short = (c) => c.replace(/^(slain|shot|killed|blown up) by /, '').replace('tried to swim in lava', 'lava');
+  const causes = top(s.causes, 2).map(([c, n]) => (n > 1 ? `${short(c)} ×${n}` : short(c))).join(', ');
+  const hours = r.hours[0] === r.hours[1] ? `Hour ${r.hours[0]}` : `Hours ${r.hours[0]}–${r.hours[1]}`;
+  const head = [
+    'Jev lives within block world · status update',
+    `${hours} · in-game day ${r.day}`,
+    '',
+    `⛏ ${s.dug.toLocaleString('en')} dug · 🧱 ${s.placed} placed · 🛠 ${s.crafted} crafted`,
+    `⚔ ${kills} kill${kills === 1 ? '' : 's'} · ☠ ${s.deaths} death${s.deaths === 1 ? '' : 's'}${s.deaths ? ` (${causes})` : ''}`,
+    `🧭 ~${s.distance_m >= 1000 ? `${(s.distance_m / 1000).toFixed(1)} km` : `${s.distance_m} m`} travelled`,
+  ];
+  const extras = []; // dropped from the end when the post runs long, so the biggest moment stays
+  if (r.biggest) extras.push(`⭐ ${r.biggest.text}, ${clock(r.biggest.at)} GMT+3`);
+  if (r.advancements.length) extras.push(`🏆 ${r.advancements.slice(0, 3).join(', ')}${r.advancements.length > 3 ? ` +${r.advancements.length - 3}` : ''}`);
+  const foot = ['', `Full report ▶ ${link}`];
+  for (let n = extras.length; n >= 0; n--) {
+    const text = [...head, ...extras.slice(0, n), ...foot].join('\n');
+    if (tweetLength(text) <= 280) return text;
+  }
+  return [...head, ...foot].join('\n');
 }
 
 // OAuth 1.0a request signing, as the X API requires for posting on behalf of the account.
@@ -111,43 +177,55 @@ async function x(method, url, body) {
   const oauth = { oauth_consumer_key: ck, oauth_nonce: randomBytes(16).toString('hex'), oauth_signature_method: 'HMAC-SHA1',
     oauth_timestamp: String(Math.floor(Date.now() / 1000)), oauth_token: tk, oauth_version: '1.0' };
   const params = Object.entries(oauth).map(([k, v]) => `${enc(k)}=${enc(v)}`).sort().join('&');
-  const base = [method, enc(url), enc(params)].join('&');
-  oauth.oauth_signature = createHmac('sha1', `${enc(cs)}&${enc(ts)}`).update(base).digest('base64');
+  oauth.oauth_signature = createHmac('sha1', `${enc(cs)}&${enc(ts)}`).update([method, enc(url), enc(params)].join('&')).digest('base64');
   const header = 'OAuth ' + Object.entries(oauth).map(([k, v]) => `${enc(k)}="${enc(v)}"`).join(', ');
   const r = await fetch(url, { method, headers: { authorization: header, 'content-type': 'application/json' }, body: body && JSON.stringify(body) });
   return { status: r.status, json: await r.json().catch(() => ({})) };
 }
 
+const site = (method, body) => fetch(`${SITE}/api/report`, {
+  method, headers: { 'x-jevcraft-key': key('jevcraft-key'), 'content-type': 'application/json' }, body: JSON.stringify(body),
+}).then((r) => r.json());
+
 async function tick() {
   if (!existsSync(LOG)) return;
-  state.pending.push(...highlights(readNewLines()));
-  const now = Date.now();
-  const hasDeath = state.pending.some((e) => e.kind === 'death');
-  // Wait until the recording of the first pending moment is online (segments land ~3 min later).
-  const ready = state.pending.length && now - Date.parse(state.pending[0].at) > 5 * 60_000;
-  if (ready && now - state.lastPost > (hasDeath ? DEATH_GAP : MIN_GAP)) {
-    const { text, used } = compose(state.pending);
+  const fresh = parse(readNewLines());
+  if (fresh.length) appendFileSync(EVENTS, fresh.map((e) => JSON.stringify(e)).join('\n') + '\n');
+  save();
+  if (!state.start) return;
+  const from = state.lastReport ?? state.start;
+  const to = new Date(Date.parse(from) + WINDOW).toISOString();
+  if (Date.now() < Date.parse(to) + 5 * 60_000) return; // wait until the window's recording is online
+  const report = await buildReport(from, to);
+  if (report.stats.dug + report.stats.placed + report.moments.length > 0) {
     if (LIVE) {
-      const r = await x('POST', 'https://api.x.com/2/tweets', { text });
-      if (r.status !== 201) { console.log(`[x] post failed ${r.status} ${JSON.stringify(r.json).slice(0, 300)}`); save(); return; }
-      console.log(`[x] posted ${r.json.data?.id}: ${text.split('\n')[1]}`);
+      const { id } = await site('POST', { data: report });
+      if (!id) throw new Error('the site did not store the report');
+      const r = await x('POST', 'https://api.x.com/2/tweets', { text: tweet(report, `${SITE}/?report=${id}`) });
+      if (r.status !== 201) throw new Error(`post failed ${r.status} ${JSON.stringify(r.json).slice(0, 200)}`);
+      await site('PATCH', { id, tweet_id: r.json.data.id });
+      console.log(`[x] report ${id} posted as ${r.json.data.id}`);
     } else {
-      appendFileSync(DRAFTS, `---- ${new Date().toISOString()}\n${text}\n`);
-      console.log(`[x] draft written (${tweetLength(text)} chars)`);
+      appendFileSync(DRAFTS, `---- ${new Date().toISOString()}\n${tweet(report, `${SITE}/?report=N`)}\n`);
+      console.log('[x] report drafted');
     }
-    state.pending = state.pending.slice(used);
-    state.lastPost = now;
   }
+  state.lastReport = to; // a window with no play at all (machine asleep) is skipped, not posted
   save();
 }
 
-if (process.argv[2] === 'preview') {
-  // Drafts from the log so far, as if every gap had passed; posts and saves nothing.
-  const events = highlights(readNewLines());
-  while (events.length) { const { text, used } = compose(events); console.log(`---- ${tweetLength(text)} chars\n${text}\n`); events.splice(0, Math.max(1, used)); }
-} else if (process.argv[2] === 'whoami') {
+const cmd = process.argv[2];
+if (cmd === 'whoami') {
   const r = await x('GET', 'https://api.x.com/2/users/me');
   console.log(r.status, JSON.stringify(r.json));
+} else if (cmd === 'preview') {
+  const fresh = parse(readNewLines());
+  appendFileSync(EVENTS, fresh.map((e) => JSON.stringify(e)).join('\n') + '\n');
+  const to = new Date().toISOString(), from = new Date(Date.now() - WINDOW).toISOString();
+  const r = await buildReport(from < state.start ? state.start : from, to);
+  const text = tweet(r, `${SITE}/?report=N`);
+  writeFileSync(`${ROOT}run/x-preview.json`, JSON.stringify(r));
+  console.log(`${text}\n\n(${tweetLength(text)} chars); full report in run/x-preview.json`);
 } else {
   for (;;) { await tick().catch((e) => console.log(`[x] ${e.message}`)); await new Promise((r) => setTimeout(r, 60_000)); }
 }
