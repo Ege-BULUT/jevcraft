@@ -19,16 +19,21 @@ export function Watch({ initial }: { initial: Segment[] }) {
 
   // A new segment lands every two minutes; pick them up so playback runs on. A live viewer waiting
   // at the end moves to the new segment as soon as it appears.
+  // The page itself may be a cached render from before the newest segments, so fetch right away.
+  const [loaded, setLoaded] = useState(false);
   useEffect(() => {
-    const iv = setInterval(async () => {
-      const r = await fetch('/api/segments').catch(() => null);
+    const poll = async () => {
+      const r = await fetch('/api/segments', { cache: 'no-store' }).catch(() => null);
       if (!r?.ok) return;
       const next = (await r.json()) as Segment[];
       setSegments(next);
-      if (waiting && next.length - 1 > idx) { setWaiting(false); setIdx(idx + 1); }
-    }, 20_000);
+      if (!loaded) { setLoaded(true); if (live) setIdx(Math.max(0, next.length - 1)); }
+      else if (waiting && next.length - 1 > idx) { setWaiting(false); setIdx(idx + 1); }
+    };
+    if (!loaded) poll();
+    const iv = setInterval(poll, 20_000);
     return () => clearInterval(iv);
-  }, [idx, waiting]);
+  }, [idx, waiting, loaded, live]);
 
   const pick = (i: number) => { setLive(false); setWaiting(false); setIdx(i); };
   const goLive = () => { setLive(true); setWaiting(false); setIdx(segments.length - 1); };
