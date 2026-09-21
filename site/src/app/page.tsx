@@ -1,3 +1,4 @@
+import { Chat } from '@/components/Chat';
 import { NowPlaying } from '@/components/NowPlaying';
 import { Watch } from '@/components/Watch';
 import { HF_REPO, listSegments } from '@/lib/segments';
@@ -24,6 +25,7 @@ export default async function Home({ searchParams }: PageProps<'/'>) {
       </section>
       <NowPlaying />
       <Watch initial={segments} at={typeof t === 'string' ? t : undefined} />
+      <Chat />
       <p className="text-xs text-zinc-600">
         Recordings: <a className="underline" href={`https://huggingface.co/datasets/${HF_REPO}`}>huggingface.co/datasets/{HF_REPO}</a> (CC BY-SA 4.0).
         Not affiliated with Mojang, Microsoft or TypeSafe AI. Gaps mean the game was paused while its machine was offline.
