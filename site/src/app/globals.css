@@ -12,3 +12,64 @@ body {
   background-attachment: fixed;
   color: #ecefe6;
 }
+
+/* ---- Collectible stat and advancement cards: tiers F (wood) to SSS (animated dragon holo) ---- */
+.pk-wrap { perspective: 900px; }
+.pk-card {
+  --a: #7a4e25; --b: #9a6634; --edge: #4a2f14; --ink: #fff7e6; --rx: 0deg; --ry: 0deg; --mx: 50%; --my: 50%;
+  position: relative; aspect-ratio: 5 / 7; border-radius: 16px; padding: 9px; overflow: hidden;
+  border: 6px solid var(--edge); color: var(--ink); background: linear-gradient(155deg, var(--a), var(--b));
+  display: flex; flex-direction: column; gap: 4px; box-shadow: 0 10px 24px #0008;
+  transform: rotateX(var(--rx)) rotateY(var(--ry)); transform-style: preserve-3d; transition: transform .15s ease-out;
+}
+.pk-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-weight: 800; font-size: 13px; line-height: 1.1; }
+.pk-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-tier { flex: none; border-radius: 6px; padding: 2px 6px; font-size: 11px; font-weight: 900; background: #0006; color: #fff; }
+.pk-art {
+  flex: none; height: 42%; border-radius: 8px; display: grid; place-items: center; border: 3px solid #0004;
+  background: repeating-linear-gradient(45deg, #ffffff14 0 6px, #0000 6px 12px), #0003; image-rendering: pixelated;
+}
+.pk-kind { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; opacity: .8; }
+.pk-value { font-size: 11px; line-height: 1.5; }
+.pk-line { font-size: 11px; opacity: .9; line-height: 1.25; }
+.pk-foot { margin-top: auto; font-size: 10px; opacity: .75; }
+
+.tier-E { --a: #5e6268; --b: #8d9299; --edge: #3d4045; }
+.tier-D { --a: #b8c0ca; --b: #eef1f5; --edge: #7c8691; --ink: #1d232b; }
+.tier-C { --a: #c48a0f; --b: #f5d76e; --edge: #8a5e06; --ink: #2b1d00; }
+.tier-B { --a: #0b7a43; --b: #3fd07e; --edge: #06502b; }
+.tier-A { --a: #1a93a0; --b: #9ff3f6; --edge: #0d5d66; --ink: #04262a; }
+.tier-S { --a: #2c2236; --b: #6b3fa0; --edge: #1a1320; }
+.tier-SS { --a: #3a1d5c; --b: #1d6f8a; --edge: #120a1f; }
+.tier-SSS { --a: #1a0b2e; --b: #4c0d3a; --edge: #f5c542; box-shadow: 0 0 28px #f5c54288, 0 10px 24px #0008; }
+
+/* B and up: a light sweep across the card. */
+.tier-B::after, .tier-A::after, .tier-S::after, .tier-SS::after, .tier-SSS::after {
+  content: ''; position: absolute; inset: -40%; pointer-events: none;
+  background: linear-gradient(115deg, #0000 40%, #ffffff55 50%, #0000 60%); animation: pk-sweep 3.5s ease-in-out infinite;
+}
+@keyframes pk-sweep { from { transform: translateX(-60%); } to { transform: translateX(60%); } }
+
+/* S and up: holographic foil that follows the pointer. */
+.tier-S::before, .tier-SS::before, .tier-SSS::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: color-dodge; opacity: .45;
+  background: radial-gradient(circle at var(--mx) var(--my), #ffffff55, #0000 45%),
+    linear-gradient(125deg, #ff008455, #fca40055, #ffff0055, #00ff8a55, #00cfff55, #cc4cfa55);
+  background-size: 100% 100%, 300% 300%; animation: pk-holo 6s linear infinite;
+}
+@keyframes pk-holo { from { background-position: 0 0, 0% 50%; } to { background-position: 0 0, 300% 50%; } }
+
+/* SS and up: glitter. */
+.tier-SS .pk-art, .tier-SSS .pk-art {
+  background: radial-gradient(#fff 1px, #0000 1.5px) 0 0 / 14px 14px, radial-gradient(#fff9 1px, #0000 1.5px) 7px 7px / 14px 14px, #0004;
+  animation: pk-glitter 1.6s steps(2) infinite;
+}
+@keyframes pk-glitter { 50% { background-position: 7px 3px, 0 10px, 0 0; } }
+
+/* SSS: the card sways in 3D on its own until the pointer takes over. */
+.tier-SSS:not(.pk-held) { animation: pk-sway 5s ease-in-out infinite; }
+@keyframes pk-sway { 0%, 100% { transform: rotateY(-16deg) rotateX(5deg); } 50% { transform: rotateY(16deg) rotateX(-5deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pk-card, .pk-card::before, .pk-card::after, .pk-art { animation: none !important; transition: none; }
+}

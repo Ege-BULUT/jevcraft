@@ -33,6 +33,7 @@ const MILESTONES = {
   trade_with_villager: 'traded with a villager', build_nether_portal: 'built a Nether portal',
 };
 const CRAFTED = /(planks|stick|pickaxe|axe|sword|shovel|hoe|crafting table|furnace|torch|bed|bread|chest|door|helmet|chestplate|leggings|boots|bucket|ladder|boat|shield|bow|arrow)$/;
+const GAINS = /^(raw iron|iron ore|raw gold|gold ore|diamond|coal|emerald|lapis lazuli|redstone|obsidian)$/;
 const ORES = { coal: 'dug up its first coal', iron: 'found iron ore', gold: 'found gold', diamond: 'found DIAMONDS', emerald: 'found an emerald' };
 // Rank for "biggest moment": rarer and later-game first.
 const WEIGHT = { 'found DIAMONDS': 100, 'built a Nether portal': 95, 'traded with a villager': 60, 'forged iron tools': 50,
@@ -79,6 +80,7 @@ function parse(lines) {
       out.push({ at, k: 'respawn', p });
     } else if ((d = /\[jev_agent\] skill (\w+) succeeded: (.*)$/.exec(b))) {
       const [, skill, msg] = d;
+      for (const [, n, item] of msg.matchAll(/\+(\d+) ([a-z][a-z ]*?)(?=,|\])/g)) if (GAINS.test(item)) out.push({ at, k: 'gain', v: item.trim(), n: Number(n) });
       const kill = /killed ([a-z ]+?)(?: \[|$)/.exec(msg);
       if (kill) out.push({ at, k: 'kill', v: kill[1].trim() });
       if (skill.startsWith('craft_')) {
@@ -172,7 +174,7 @@ function tweet(r, link) {
 }
 
 // OAuth 1.0a request signing, as the X API requires for posting on behalf of the account.
-const key = (s) => execFileSync('security', ['find-generic-password', '-a', 'jevcraft', '-s', s, '-w']).toString().trim();
+const key = (s) => execFileSync('security', ['find-generic-password', '-a', 'jevcraft', '-s', s, '-w'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
 const enc = (s) => encodeURIComponent(s).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
 async function x(method, url, body) {
   const [ck, cs, tk, ts] = ['x-api-key', 'x-api-secret', 'x-access-token', 'x-access-secret'].map(key);
@@ -247,12 +249,55 @@ async function share(p) {
   save();
 }
 
+// Running totals for the whole run, for the stats strip and cards on the site.
+async function dayCount() {
+  const env = readFileSync(`${ROOT}site/.env.local`, 'utf8');
+  const get = (k) => new RegExp(`^${k}="?([^"\\n]+)`, 'm').exec(env)?.[1];
+  const since = state.todAt ?? state.start;
+  const url = `${get('NEXT_PUBLIC_SUPABASE_URL')}/rest/v1/jc_decisions?select=at,snapshot&at=gt.${since}&order=at&limit=2000`;
+  const rows = await fetch(url, { headers: { apikey: get('NEXT_PUBLIC_SUPABASE_ANON_KEY') } }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+  state.days ??= 1;
+  for (const { at, snapshot } of rows) {
+    const t = snapshot?.time_of_day;
+    if (typeof t === 'number') { if (state.tod != null && t < state.tod - 0.5) state.days++; state.tod = t; }
+    state.todAt = at;
+  }
+  return state.days;
+}
+
+async function pushStats() {
+  const ev = loadEvents();
+  const tallyBy = (k, f = (e) => e.v) => ev.filter((e) => e.k === k).reduce((m, e) => ({ ...m, [f(e)]: (m[f(e)] ?? 0) + (e.n ?? 1) }), {});
+  let dist = 0, last = null;
+  for (const e of ev) {
+    if (!e.p) continue;
+    if (e.k === 'respawn') { last = e.p; continue; }
+    if (last) { const d = Math.hypot(e.p[0] - last[0], e.p[1] - last[1], e.p[2] - last[2]); if (d < 80) dist += d; }
+    last = e.p;
+  }
+  const deaths = ev.filter((e) => e.k === 'death').map((e) => Date.parse(e.at));
+  const marks = [Date.parse(state.start), ...deaths, Date.now()];
+  const longest = Math.max(...marks.slice(1).map((t, i) => t - marks[i]));
+  const data = {
+    updated: new Date().toISOString(), start: state.start, day: await dayCount(),
+    totals: {
+      dug: ev.filter((e) => e.k === 'dig').length, placed: ev.filter((e) => e.k === 'place').length,
+      crafted: ev.filter((e) => e.k === 'craft').reduce((a, e) => a + e.n, 0), distance_blocks: Math.round(dist),
+      longest_life_s: Math.round(longest / 1000), kills: tallyBy('kill'), deaths: tallyBy('death'), gains: tallyBy('gain'),
+    },
+    advancements: ev.filter((e) => e.k === 'adv').map((e) => ({ name: e.v, at: e.at })),
+  };
+  const r = await fetch(`${SITE}/api/stats`, { method: 'POST', headers: { 'x-jevcraft-key': key('jevcraft-key'), 'content-type': 'application/json' }, body: JSON.stringify({ data }) });
+  if (!r.ok) console.log(`[stats] push failed ${r.status}`);
+}
+
 async function tick() {
   if (!existsSync(LOG)) return;
   const fresh = parse(readNewLines());
   if (fresh.length) appendFileSync(EVENTS, fresh.map((e) => JSON.stringify(e)).join('\n') + '\n');
   save();
   if (!state.start) return;
+  if (LIVE) await pushStats().catch((e) => console.log(`[stats] ${e.message}`));
   if (state.pending) { // a stored report still to be shared; each channel is retried on its own
     if (Date.now() < (state.retryAt ?? 0)) return;
     await share(state.pending);
@@ -289,7 +334,14 @@ async function tick() {
 }
 
 const cmd = process.argv[2];
-if (cmd === 'whoami') {
+if (cmd === 'rebuild') {
+  const from = Number(process.env.X_FROM_OFFSET ?? 0);
+  Object.assign(state, { offset: from, seen: [], start: null });
+  const ev = parse(readNewLines());
+  writeFileSync(EVENTS, ev.map((e) => JSON.stringify(e)).join('\n') + '\n');
+  save();
+  console.log(`rebuilt ${ev.length} events from offset ${from}`);
+} else if (cmd === 'whoami') {
   const r = await x('GET', 'https://api.x.com/2/users/me');
   console.log(r.status, JSON.stringify(r.json));
 } else if (cmd === 'preview') {
