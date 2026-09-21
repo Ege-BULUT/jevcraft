@@ -55,9 +55,11 @@ function PokeCard({ c }: { c: Card }) {
     const x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5;
     setTilt({ '--ry': `${x * 24}deg`, '--rx': `${-y * 18}deg`, '--mx': `${(x + 0.5) * 100}%`, '--my': `${(y + 0.5) * 100}%` } as CSSProperties);
   };
+  // The tilt lives on the wrapper so the SSS god rays, which reach outside the card, tilt with it.
   return (
-    <div className={`pk-wrap w-${c.tier}`}>
-      <div className={`pk-card tier-${c.tier} ${Object.keys(tilt).length ? 'pk-held' : ''}`} style={tilt} onPointerMove={move} onPointerLeave={() => setTilt({})}>
+    <div className={`pk-wrap w-${c.tier} ${Object.keys(tilt).length ? 'pk-held' : ''}`} style={tilt} onPointerMove={move} onPointerLeave={() => setTilt({})}>
+      {c.tier === 'SSS' && <><span className="pk-godrays" aria-hidden><i /></span><span className="pk-dust" aria-hidden /></>}
+      <div className={`pk-card tier-${c.tier}`}>
         <div className="pk-head"><span className="pk-title">{c.title}</span><span className="pk-tier">{c.tier}</span></div>
         <div className="pk-art"><PixelIcon name={c.icon} size={72} /></div>
         <div className="pk-kind">{c.kind}</div>

@@ -14,9 +14,9 @@ body {
 }
 
 /* ---- Collectible stat and advancement cards: tiers F (wood) to SSS (animated dragon holo) ---- */
-.pk-wrap { perspective: 900px; }
+.pk-wrap { perspective: 900px; --rx: 0deg; --ry: 0deg; --mx: 50%; --my: 50%; } /* tilt vars live on the wrapper */
 .pk-card {
-  --a: #7a4e25; --b: #9a6634; --edge: #4a2f14; --ink: #fff7e6; --rx: 0deg; --ry: 0deg; --mx: 50%; --my: 50%;
+  --a: #7a4e25; --b: #9a6634; --edge: #4a2f14; --ink: #fff7e6;
   position: relative; aspect-ratio: 5 / 7; border-radius: 16px; padding: 9px; overflow: hidden;
   border: 6px solid var(--edge); color: var(--ink); background: linear-gradient(155deg, var(--a), var(--b));
   display: flex; flex-direction: column; gap: 4px; box-shadow: 0 10px 24px #0008;
@@ -67,7 +67,7 @@ body {
 @keyframes pk-glitter { 50% { background-position: 7px 3px, 0 10px, 0 0; } }
 
 /* SSS: the card sways in 3D on its own until the pointer takes over. */
-.tier-SSS:not(.pk-held) { animation: pk-sway 5s ease-in-out infinite; }
+.w-SSS:not(.pk-held) .tier-SSS { animation: pk-sway 5s ease-in-out infinite; }
 @keyframes pk-sway { 0%, 100% { transform: rotateY(-16deg) rotateX(5deg); } 50% { transform: rotateY(16deg) rotateX(-5deg); } }
 
 /* ---- Escalating flair: B gets a new frame; A and up levitate, glow and shine; S, SS, SSS go over the top ---- */
@@ -139,7 +139,7 @@ body {
     conic-gradient(from var(--spin), #ffd24a, #ff004c, #fff8d6, #00ff95, #ffd24a, #00c8ff, #fff8d6, #b300ff, #ffd24a) border-box;
   box-shadow: 0 0 30px #fff, 0 0 90px #ffd24a, 0 0 180px #ff66cc, 0 0 300px #00c8ffcc, 0 0 420px #ffd24a88;
 }
-.tier-SSS.pk-card.pk-held { animation: pk-spin 1s linear infinite; }
+.pk-held .tier-SSS.pk-card { animation: pk-spin 1s linear infinite; }
 .w-SSS::before { inset: -90px; animation: pk-rays 3.5s linear infinite;
   background: repeating-conic-gradient(from 0deg, #ffd24a66 0 4deg, #0000 4deg 10deg, #ff66ff55 10deg 14deg, #0000 14deg 20deg); }
 .w-SSS::after { content: ''; inset: -70px; border-radius: 50%; left: auto; right: auto; bottom: auto; height: auto;
@@ -148,6 +148,43 @@ body {
 .w-SSS .pk-head::after { content: '✦ ✧ ✦ ✧ ✦ ✧ ✦'; animation-duration: 1s; color: #fff8d6; }
 .pk-head { position: relative; }
 
+/* ---- Tier badges ---- */
+.pk-tier { position: relative; overflow: hidden; }
+/* A: a cut diamond. */
+.tier-A .pk-tier { color: #033b40; background: linear-gradient(135deg, #f1ffff, #9ff3f6 35%, #2bb5c0 55%, #c9fbff 75%, #5ce1e6);
+  box-shadow: 0 0 8px #5ce1e6, 0 0 16px #5ce1e688, inset 0 1px 0 #fff; }
+/* S: faceted obsidian in violet, like a polished volcanic gem. */
+.tier-S .pk-tier { color: #efe6ff; text-shadow: 0 0 6px #a78bfa;
+  background: conic-gradient(from 210deg at 35% 30%, #2d1b52, #7c3aed, #140b29, #a78bfa, #3b1f75, #0d0719, #6d28d9, #2d1b52);
+  box-shadow: 0 0 10px #7c3aedaa, inset 0 0 0 1px #a78bfa77; }
+/* SS: flowing RGB with a glossy top. */
+@keyframes pk-rgb { to { background-position: 300% 0; } }
+.tier-SS .pk-tier { color: #fff; text-shadow: 0 1px 2px #0009; box-shadow: 0 0 10px #ffffffaa;
+  background: linear-gradient(90deg, #ff004c, #ffae00, #fff200, #00ff95, #00c8ff, #b300ff, #ff004c) 0 0 / 300% 100%;
+  animation: pk-rgb 2s linear infinite; }
+.tier-SS .pk-tier::before { content: ''; position: absolute; inset: 0 0 48% 0; border-radius: 6px 6px 40% 40% / 6px 6px 30% 30%;
+  background: linear-gradient(#ffffffc0, #ffffff22); }
+/* SSS: burnished gold. */
+.tier-SSS .pk-tier { color: #3a2400; background: linear-gradient(135deg, #fffbe8, #ffd24a 40%, #b8860b 60%, #fff3b0);
+  box-shadow: 0 0 14px #ffd24a, 0 0 30px #ffd24aaa; }
+
+/* SSS: gold god rays leaking out of the badge, turning with the card, and gold dust drifting around it. */
+@keyframes pk-flicker { 50% { opacity: .6; } }
+.pk-godrays { position: absolute; inset: 0; pointer-events: none; z-index: 2; transform-style: preserve-3d;
+  animation: pk-sway 5s ease-in-out infinite; }
+.pk-held .pk-godrays { animation: none; transform: rotateX(var(--rx)) rotateY(var(--ry)); }
+.pk-godrays i { position: absolute; right: -72px; top: -72px; width: 200px; height: 200px; border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, #ffd24ad0 0 2.5deg, #0000 2.5deg 11deg, #fff3b0b0 11deg 12.5deg, #0000 12.5deg 23deg);
+  mask: radial-gradient(closest-side, #000 6%, #000b 30%, #0000 74%); mix-blend-mode: screen;
+  filter: blur(.5px) drop-shadow(0 0 6px #ffd24a); animation: pk-rays 7s linear infinite, pk-flicker 1.3s ease-in-out infinite; }
+@keyframes pk-dust { to { background-position: 0 -41px, 11px -134px, 23px -201px, 5px -94px; } }
+@keyframes pk-twinkle { 50% { opacity: .55; } }
+.pk-dust { position: absolute; inset: -56px; pointer-events: none; z-index: 3; mix-blend-mode: screen;
+  background: radial-gradient(#ffe58a 0.8px, #0000 1.6px) 0 0 / 37px 41px, radial-gradient(#ffd24acc 0.6px, #0000 1.3px) 11px 7px / 53px 67px,
+    radial-gradient(#fff3b0 1px, #0000 1.9px) 23px 19px / 71px 67px, radial-gradient(#ffcf40 0.7px, #0000 1.4px) 5px 29px / 29px 47px;
+  mask: radial-gradient(closest-side, #000 60%, #0000 100%); animation: pk-dust 7s linear infinite, pk-twinkle 1.7s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
-  .pk-card, .pk-card::before, .pk-card::after, .pk-art, .pk-wrap, .pk-wrap::before, .pk-wrap::after, .pk-head::after { animation: none !important; transition: none; }
+  .pk-card, .pk-card::before, .pk-card::after, .pk-art, .pk-wrap, .pk-wrap::before, .pk-wrap::after, .pk-head::after,
+  .pk-tier, .pk-godrays, .pk-godrays i, .pk-dust { animation: none !important; transition: none; }
 }
