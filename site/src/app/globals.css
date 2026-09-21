@@ -165,18 +165,12 @@ body {
 .tier-SS .pk-tier::before { content: ''; position: absolute; inset: 0 0 48% 0; border-radius: 6px 6px 40% 40% / 6px 6px 30% 30%;
   background: linear-gradient(#ffffffc0, #ffffff22); }
 /* SSS: burnished gold. */
-.tier-SSS .pk-tier { color: #3a2400; background: linear-gradient(135deg, #fffbe8, #ffd24a 40%, #b8860b 60%, #fff3b0);
-  box-shadow: 0 0 14px #ffd24a, 0 0 30px #ffd24aaa; }
+/* SSS: a dark gold-rimmed plate; the letters are slots with light pouring through (the canvas adds the shafts). */
+.tier-SSS .pk-tier { color: transparent; background: radial-gradient(circle at 50% 40%, #2a1d05, #0d0802);
+  box-shadow: inset 0 0 0 1px #ffd24a, inset 0 0 6px #000, 0 0 10px #ffd24a88; } /* the letters are drawn, lit, by the canvas */
 
-/* SSS: gold god rays leaking out of the badge, turning with the card, and gold dust drifting around it. */
-@keyframes pk-flicker { 50% { opacity: .6; } }
-.pk-godrays { position: absolute; inset: 0; pointer-events: none; z-index: 2; transform-style: preserve-3d;
-  animation: pk-sway 5s ease-in-out infinite; }
-.pk-held .pk-godrays { animation: none; transform: rotateX(var(--rx)) rotateY(var(--ry)); }
-.pk-godrays i { position: absolute; right: -72px; top: -72px; width: 200px; height: 200px; border-radius: 50%;
-  background: repeating-conic-gradient(from 0deg, #ffd24ad0 0 2.5deg, #0000 2.5deg 11deg, #fff3b0b0 11deg 12.5deg, #0000 12.5deg 23deg);
-  mask: radial-gradient(closest-side, #000 6%, #000b 30%, #0000 74%); mix-blend-mode: screen;
-  filter: blur(.5px) drop-shadow(0 0 6px #ffd24a); animation: pk-rays 7s linear infinite, pk-flicker 1.3s ease-in-out infinite; }
+/* SSS: light shafts through the badge slots are drawn on a canvas (src/lib/godrays.ts); gold dust drifts around. */
+.pk-rays-canvas { position: absolute; pointer-events: none; z-index: 4; mix-blend-mode: screen; }
 @keyframes pk-dust { to { background-position: 0 -41px, 11px -134px, 23px -201px, 5px -94px; } }
 @keyframes pk-twinkle { 50% { opacity: .55; } }
 .pk-dust { position: absolute; inset: -56px; pointer-events: none; z-index: 3; mix-blend-mode: screen;
@@ -186,5 +180,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .pk-card, .pk-card::before, .pk-card::after, .pk-art, .pk-wrap, .pk-wrap::before, .pk-wrap::after, .pk-head::after,
-  .pk-tier, .pk-godrays, .pk-godrays i, .pk-dust { animation: none !important; transition: none; }
+  .pk-tier, .pk-dust { animation: none !important; transition: none; }
+  .pk-rays-canvas { display: none; }
+  .tier-SSS .pk-tier { color: #fff8d6; text-shadow: 0 0 6px #ffd24a; }
 }
