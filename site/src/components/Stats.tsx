@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useState, type CSSProperties, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { Press_Start_2P } from 'next/font/google';
 import { browserDb } from '@/lib/db';
 import { advancementTier, statTier, tierRank, type Tier } from '@/lib/tiers';
 import { PixelIcon, type IconName } from './PixelIcon';
+import { attachGodRays } from '@/lib/godrays';
 
 const pixel = Press_Start_2P({ weight: '400', subsets: ['latin'] });
 
@@ -48,6 +49,8 @@ function cards(d: StatsData): Card[] {
 
 function PokeCard({ c }: { c: Card }) {
   const [tilt, setTilt] = useState<CSSProperties>({});
+  const wrap = useRef<HTMLDivElement>(null);
+  useEffect(() => (c.tier === 'SSS' && wrap.current ? attachGodRays(wrap.current) : undefined), [c.tier]);
   const interactive = tierRank(c.tier) >= tierRank('S');
   const move = (e: PointerEvent<HTMLDivElement>) => {
     if (!interactive) return;
@@ -57,8 +60,8 @@ function PokeCard({ c }: { c: Card }) {
   };
   // The tilt lives on the wrapper so the SSS god rays, which reach outside the card, tilt with it.
   return (
-    <div className={`pk-wrap w-${c.tier} ${Object.keys(tilt).length ? 'pk-held' : ''}`} style={tilt} onPointerMove={move} onPointerLeave={() => setTilt({})}>
-      {c.tier === 'SSS' && <><span className="pk-godrays" aria-hidden><i /></span><span className="pk-dust" aria-hidden /></>}
+    <div ref={wrap} className={`pk-wrap w-${c.tier} ${Object.keys(tilt).length ? 'pk-held' : ''}`} style={tilt} onPointerMove={move} onPointerLeave={() => setTilt({})}>
+      {c.tier === 'SSS' && <span className="pk-dust" aria-hidden />}
       <div className={`pk-card tier-${c.tier}`}>
         <div className="pk-head"><span className="pk-title">{c.title}</span><span className="pk-tier">{c.tier}</span></div>
         <div className="pk-art"><PixelIcon name={c.icon} size={72} /></div>
