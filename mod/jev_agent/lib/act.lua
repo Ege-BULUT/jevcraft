@@ -343,8 +343,8 @@ end
 -- (crafting table, furnace, chest, bed ...) are never broken.
 function A.dig(p, pos, clearing)
 	local node = minetest.get_node(pos)
-	if node.name == "air" or node.name == "ignore" then
-		return node.name == "air"
+	if node.name == "air" or node.name == "jev_agent:glow" or node.name == "ignore" then
+		return node.name ~= "ignore" -- the travelling light (lib/glow.lua) is as good as air
 	end
 	local def = minetest.registered_nodes[node.name]
 	if not def or def.diggable == false then

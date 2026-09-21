@@ -28,6 +28,7 @@ dofile(MP .. "/lib/util.lua")
 dofile(MP .. "/lib/act.lua")
 dofile(MP .. "/lib/state.lua")
 dofile(MP .. "/lib/hud.lua")
+dofile(MP .. "/lib/glow.lua")
 
 -- Skill registry ---------------------------------------------------------------
 jev.skills, jev.skill_order = {}, {}
@@ -156,6 +157,17 @@ local function finish(ok, msg)
 	end
 	local delta = #gained > 0 and (" [" .. table.concat(gained, ", ", 1, math.min(#gained, 8)) .. "]") or ""
 	S.last = {skill = sk.id, ok = ok, message = msg}
+	-- A skill that keeps failing for the same reason is offered as blocked for a while, so the
+	-- decision service cannot pick it over and over (craft_iron_tools once failed 737 times in a row).
+	S.fails = S.fails or {}
+	if ok then
+		S.fails[sk.id] = nil
+	else
+		local f = S.fails[sk.id] or {n = 0}
+		f.n, f.msg = f.n + 1, msg
+		f.until_t = f.n >= 2 and now() + math.min(600, 90 * (f.n - 1)) or 0
+		S.fails[sk.id] = f
+	end
 	note(string.format("Last: %s %s after %d s: %s%s", sk.id, ok and "succeeded" or "FAILED",
 		math.floor(now() - S.started), msg, delta))
 	log(string.format("skill %s %s: %s%s", sk.id, ok and "succeeded" or "failed", msg, delta))
@@ -188,6 +200,11 @@ local function build_request(p)
 		if not ok then
 			minetest.log("error", "[jev_agent] offer " .. id .. ": " .. tostring(o))
 		elseif o then
+			local f = S.fails and S.fails[id]
+			if o.ok and f and now() < f.until_t then
+				o.ok = false
+				o.detail = string.format("failed %d times in a row just now (%s); try something else first", f.n, f.msg)
+			end
 			opts[#opts + 1] = {id = id, label = sk.label, detail = (o.ok and "" or "Not possible now: ") .. o.detail,
 				ok = o.ok, prio = o.prio or 0}
 		end
