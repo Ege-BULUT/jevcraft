@@ -30,7 +30,7 @@ Screen recordings of TypeSafe's Jev model playing [VoxeLibre](https://content.lu
 (a free game in the style of Minecraft, not affiliated with Mojang or Microsoft) on the
 [Luanti](https://www.luanti.org/) engine, live and unattended, from 21 to 25 September 2026.
 
-- `videos/YYYY-MM-DD/<UTC start>.mp4`: 10-minute segments, 1280x720, 30 fps, H.264, game window only.
+- `videos/YYYY-MM-DD/<UTC start>.mp4`: 2-minute segments, 1280x720, 30 fps, H.264, game window only.
   A gap between segments means the game was paused (the machine was offline or asleep).
 
 VoxeLibre's art is licensed CC BY-SA 4.0 and its code GPLv3; these recordings are shared under

@@ -2,7 +2,7 @@ import { NowPlaying } from '@/components/NowPlaying';
 import { Watch } from '@/components/Watch';
 import { HF_REPO, listSegments } from '@/lib/segments';
 
-export const revalidate = 60;
+export const revalidate = 15;
 
 export default async function Home() {
   const segments = await listSegments();

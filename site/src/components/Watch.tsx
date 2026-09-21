@@ -3,26 +3,39 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { browserDb, type Decision } from '@/lib/db';
 import type { Segment } from '@/lib/segments';
 
-const SEGMENT_S = 600;
+const SEGMENT_S = 120; // the recorder's segment length
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 const day = (iso: string) => new Date(iso).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
 
 export function Watch({ initial }: { initial: Segment[] }) {
   const [segments, setSegments] = useState(initial);
   const [idx, setIdx] = useState(Math.max(0, initial.length - 1));
+  const [live, setLive] = useState(true); // follow the newest segment, like a live stream a few minutes behind
+  const [waiting, setWaiting] = useState(false); // live and at the end: the next segment is still uploading
   const [t, setT] = useState(0);
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const video = useRef<HTMLVideoElement>(null);
   const seg = segments[idx];
 
-  // New segments arrive every ten minutes; pick them up so playback can run on.
+  // A new segment lands every two minutes; pick them up so playback runs on. A live viewer waiting
+  // at the end moves to the new segment as soon as it appears.
   useEffect(() => {
     const iv = setInterval(async () => {
       const r = await fetch('/api/segments').catch(() => null);
-      if (r?.ok) setSegments(await r.json());
-    }, 60_000);
+      if (!r?.ok) return;
+      const next = (await r.json()) as Segment[];
+      setSegments(next);
+      if (waiting && next.length - 1 > idx) { setWaiting(false); setIdx(idx + 1); }
+    }, 20_000);
     return () => clearInterval(iv);
-  }, []);
+  }, [idx, waiting]);
+
+  const pick = (i: number) => { setLive(false); setWaiting(false); setIdx(i); };
+  const goLive = () => { setLive(true); setWaiting(false); setIdx(segments.length - 1); };
+  const ended = () => {
+    if (idx < segments.length - 1) setIdx(idx + 1);
+    else if (live) setWaiting(true);
+  };
 
   // The decisions made while this segment was recorded.
   useEffect(() => {
@@ -42,7 +55,7 @@ export function Watch({ initial }: { initial: Segment[] }) {
   if (!seg) {
     return (
       <div className="rounded-2xl border border-white/10 bg-black/40 p-10 text-center text-zinc-400">
-        The first recording is on its way: segments appear here about ten minutes after they are played.
+        The first recording is on its way: the game plays a few minutes ahead of what appears here.
       </div>
     );
   }
@@ -54,14 +67,19 @@ export function Watch({ initial }: { initial: Segment[] }) {
           <video
             ref={video} key={seg.url} src={seg.url} controls autoPlay muted playsInline
             onTimeUpdate={(e) => setT(e.currentTarget.currentTime)}
-            onEnded={() => setIdx((i) => Math.min(i + 1, segments.length - 1))}
+            onEnded={ended}
             className="aspect-video w-full rounded-2xl border border-white/10 bg-black"
           />
+          {waiting && <p className="mt-2 text-xs text-zinc-400">Caught up with the game: the next two minutes are uploading…</p>}
           <div className="mt-2 flex items-center justify-between text-xs text-zinc-400">
-            <span>{day(seg.start)} · {hhmm(seg.start)}–{hhmm(new Date(Date.parse(seg.start) + SEGMENT_S * 1000).toISOString())}</span>
+            <span className="flex items-center gap-2">
+              <button onClick={goLive} className={`inline-flex items-center gap-1.5 rounded px-2 py-1 font-black uppercase tracking-widest ${live ? 'bg-red-600 text-white' : 'bg-white/10 text-zinc-300 hover:bg-white/20'}`}>
+                <span className={`size-1.5 rounded-full ${live ? 'animate-pulse bg-white' : 'bg-zinc-400'}`} />Live
+              </button>
+              {day(seg.start)} · {hhmm(seg.start)}–{hhmm(new Date(Date.parse(seg.start) + SEGMENT_S * 1000).toISOString())}</span>
             <span className="flex gap-2">
-              <button className="rounded bg-white/10 px-2 py-1 hover:bg-white/20 disabled:opacity-40" disabled={idx === 0} onClick={() => setIdx(idx - 1)}>◀ Previous</button>
-              <button className="rounded bg-white/10 px-2 py-1 hover:bg-white/20 disabled:opacity-40" disabled={idx >= segments.length - 1} onClick={() => setIdx(idx + 1)}>Next ▶</button>
+              <button className="rounded bg-white/10 px-2 py-1 hover:bg-white/20 disabled:opacity-40" disabled={idx === 0} onClick={() => pick(idx - 1)}>◀ Previous</button>
+              <button className="rounded bg-white/10 px-2 py-1 hover:bg-white/20 disabled:opacity-40" disabled={idx >= segments.length - 1} onClick={() => pick(idx + 1)}>Next ▶</button>
             </span>
           </div>
         </div>
@@ -79,7 +97,7 @@ export function Watch({ initial }: { initial: Segment[] }) {
         </div>
         <div className="flex flex-wrap gap-1.5">
           {segments.map((s, i) => day(s.start) === shownDay && (
-            <button key={s.path} onClick={() => setIdx(i)}
+            <button key={s.path} onClick={() => pick(i)}
               className={`rounded px-2 py-1 font-mono text-xs ${i === idx ? 'bg-lime-400 text-black' : 'bg-white/[0.06] text-zinc-300 hover:bg-white/15'}`}>{hhmm(s.start)}</button>
           ))}
         </div>

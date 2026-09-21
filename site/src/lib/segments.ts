@@ -10,7 +10,7 @@ const startOf = (name: string) =>
 
 export async function listSegments(): Promise<Segment[]> {
   const res = await fetch(`https://huggingface.co/api/datasets/${HF_REPO}/tree/main/videos?recursive=true`, {
-    next: { revalidate: 60 },
+    next: { revalidate: 15 },
   });
   if (!res.ok) return [];
   const items = (await res.json()) as { type: string; path: string }[];
