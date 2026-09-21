@@ -151,7 +151,7 @@ function tweet(r, link) {
   const causes = top(s.causes, 2).map(([c, n]) => (n > 1 ? `${short(c)} ×${n}` : short(c))).join(', ');
   const hours = r.hours[0] === r.hours[1] ? `Hour ${r.hours[0]}` : `Hours ${r.hours[0]}–${r.hours[1]}`;
   const head = [
-    'Jev lives within block world · status update',
+    '🧱 JevCraft · Jev lives within block world', // the account posts every Jev experiment, so name this one
     `${hours} · in-game day ${r.day}`,
     '',
     `⛏ ${s.dug.toLocaleString('en')} dug · 🧱 ${s.placed} placed · 🛠 ${s.crafted} crafted`,
