@@ -56,7 +56,7 @@ function PokeCard({ c }: { c: Card }) {
     setTilt({ '--ry': `${x * 24}deg`, '--rx': `${-y * 18}deg`, '--mx': `${(x + 0.5) * 100}%`, '--my': `${(y + 0.5) * 100}%` } as CSSProperties);
   };
   return (
-    <div className="pk-wrap">
+    <div className={`pk-wrap w-${c.tier}`}>
       <div className={`pk-card tier-${c.tier} ${Object.keys(tilt).length ? 'pk-held' : ''}`} style={tilt} onPointerMove={move} onPointerLeave={() => setTilt({})}>
         <div className="pk-head"><span className="pk-title">{c.title}</span><span className="pk-tier">{c.tier}</span></div>
         <div className="pk-art"><PixelIcon name={c.icon} size={72} /></div>
