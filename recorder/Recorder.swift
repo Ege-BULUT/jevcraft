@@ -1,11 +1,11 @@
 // Records only the Luanti game window, never the display, as 10-minute H.264 segments.
 //
 //   swiftc -O Recorder.swift -o jevcraft-recorder
-//   ./jevcraft-recorder <out-dir>
+//   ./jevcraft-recorder <out-dir> <flag-file>
 //
-// Frames are written only while <out-dir>/../state/recording exists (the agent creates it while
-// Jev is playing), and never while <out-dir> holds more than MAX_BACKLOG bytes of segments that
-// have not been uploaded yet. A finished segment is renamed from .part to .mp4 for the uploader.
+// Frames are written only while <flag-file> exists (the jev_agent mod keeps <world>/jev_recording
+// while Jev is playing and removes it when paused), and never while <out-dir> holds more than
+// MAX_BACKLOG bytes of segments that have not been uploaded yet. A finished segment is renamed from .part to .mp4 for the uploader.
 
 import AppKit
 import AVFoundation
@@ -20,7 +20,7 @@ let MAX_BACKLOG: UInt64 = 3 * 1024 * 1024 * 1024
 _ = NSApplication.shared // a CLI must set up its window-server connection before ScreenCaptureKit
 
 let outDir = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "segments")
-let flag = outDir.deletingLastPathComponent().appendingPathComponent("state/recording")
+let flag = URL(fileURLWithPath: CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "recording")
 try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
 
 func log(_ s: String) { print("[recorder \(ISO8601DateFormatter().string(from: Date()))] \(s)"); fflush(stdout) }

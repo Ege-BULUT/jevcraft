@@ -4,3 +4,7 @@ node_modules/
 .env*
 .vercel
 .next/
+
+# Next.js writes these agent files on dev
+site/AGENTS.md
+site/CLAUDE.md
