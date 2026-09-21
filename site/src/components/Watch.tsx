@@ -12,17 +12,30 @@ const day = (iso: string) => new Date(iso).toLocaleDateString(TZ.locale, { weekd
 export function Watch({ initial }: { initial: Segment[] }) {
   const [segments, setSegments] = useState(initial);
   const [idx, setIdx] = useState(Math.max(0, initial.length - 1));
-  const [live, setLive] = useState(true); // follow the newest segment, like a live stream a few minutes behind
+  const [front, setFront] = useState<0 | 1>(0); // which of the two players is on screen
+  const [live, setLive] = useState(true);       // follow the newest segment, a few minutes behind the game
   const [waiting, setWaiting] = useState(false); // live and at the end: the next segment is still uploading
+  const [playing, setPlaying] = useState(true);
   const [t, setT] = useState(0);
   const [decisions, setDecisions] = useState<Decision[]>([]);
-  const video = useRef<HTMLVideoElement>(null);
+  const [loaded, setLoaded] = useState(false);
+  const playerA = useRef<HTMLVideoElement>(null), playerB = useRef<HTMLVideoElement>(null);
+  const el = (p: 0 | 1) => (p === 0 ? playerA : playerB).current;
+  const seekTo = useRef<number | null>(null); // offset to apply once the front player has the segment
   const seg = segments[idx];
 
-  // A new segment lands every two minutes; pick them up so playback runs on. A live viewer waiting
-  // at the end moves to the new segment as soon as it appears.
-  // The page itself may be a cached render from before the newest segments, so fetch right away.
-  const [loaded, setLoaded] = useState(false);
+  // Two players, one on screen and one preloading the next segment, so one segment ends and the
+  // next starts without a gap: the recording plays as one continuous video.
+  const srcOf = (p: 0 | 1) => segments[p === front ? idx : idx + 1]?.url;
+  const advance = () => {
+    if (idx + 1 >= segments.length) { if (live) setWaiting(true); return; }
+    el(front === 0 ? 1 : 0)?.play().catch(() => {});
+    setFront(front === 0 ? 1 : 0);
+    setIdx(idx + 1);
+    setT(0);
+  };
+
+  // New segments are appended every two minutes. The page may be a cached render, so fetch at once.
   useEffect(() => {
     const poll = async () => {
       const r = await fetch('/api/segments', { cache: 'no-store' }).catch(() => null);
@@ -30,18 +43,21 @@ export function Watch({ initial }: { initial: Segment[] }) {
       const next = (await r.json()) as Segment[];
       setSegments(next);
       if (!loaded) { setLoaded(true); if (live) setIdx(Math.max(0, next.length - 1)); }
-      else if (waiting && next.length - 1 > idx) { setWaiting(false); setIdx(idx + 1); }
     };
     if (!loaded) poll();
     const iv = setInterval(poll, 20_000);
     return () => clearInterval(iv);
-  }, [idx, waiting, loaded, live]);
+  }, [loaded, live]);
 
-  const pick = (i: number) => { setLive(false); setWaiting(false); setIdx(i); };
-  const goLive = () => { setLive(true); setWaiting(false); setIdx(segments.length - 1); };
-  const ended = () => {
-    if (idx < segments.length - 1) setIdx(idx + 1);
-    else if (live) setWaiting(true);
+  // Jump anywhere on the whole timeline: pick the segment, then the second within it.
+  const jump = (sec: number, follow = false) => {
+    const i = Math.max(0, Math.min(segments.length - 1, Math.floor(sec / SEGMENT_S)));
+    seekTo.current = sec - i * SEGMENT_S;
+    setT(seekTo.current); // keep the controlled slider on the new spot until the player catches up
+    setLive(follow); setWaiting(false); setPlaying(true);
+    const v = el(front);
+    if (i === idx && v) { v.currentTime = seekTo.current; seekTo.current = null; }
+    else setIdx(i);
   };
 
   // The decisions made while this segment was recorded.
@@ -55,9 +71,6 @@ export function Watch({ initial }: { initial: Segment[] }) {
 
   const now = seg ? Date.parse(seg.start) + t * 1000 : 0;
   const current = useMemo(() => [...decisions].reverse().find((d) => Date.parse(d.at) <= now) ?? null, [decisions, now]);
-  const days = useMemo(() => [...new Set(segments.map((s) => day(s.start)))], [segments]);
-  const [openDay, setOpenDay] = useState<string | null>(null);
-  const shownDay = openDay ?? (seg ? day(seg.start) : days.at(-1));
 
   if (!seg) {
     return (
@@ -67,48 +80,55 @@ export function Watch({ initial }: { initial: Segment[] }) {
     );
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-5 lg:flex-row">
-        <div className="lg:w-[64%]">
-          <video
-            ref={video} key={seg.url} src={seg.url} controls autoPlay muted playsInline
-            onTimeUpdate={(e) => setT(e.currentTarget.currentTime)}
-            onEnded={ended}
-            className="aspect-video w-full rounded-2xl border border-white/10 bg-black"
-          />
-          {waiting && <p className="mt-2 text-xs text-zinc-400">Caught up with the game: the next two minutes are uploading…</p>}
-          <div className="mt-2 flex items-center justify-between text-xs text-zinc-400">
-            <span className="flex items-center gap-2">
-              <button onClick={goLive} className={`inline-flex items-center gap-1.5 rounded px-2 py-1 font-black uppercase tracking-widest ${live ? 'bg-red-600 text-white' : 'bg-white/10 text-zinc-300 hover:bg-white/20'}`}>
-                <span className={`size-1.5 rounded-full ${live ? 'animate-pulse bg-white' : 'bg-zinc-400'}`} />Live
-              </button>
-              {day(seg.start)} · {hhmm(seg.start)}–{hhmm(new Date(Date.parse(seg.start) + SEGMENT_S * 1000).toISOString())} Istanbul time</span>
-            <span className="flex gap-2">
-              <button className="rounded bg-white/10 px-2 py-1 hover:bg-white/20 disabled:opacity-40" disabled={idx === 0} onClick={() => pick(idx - 1)}>◀ Previous</button>
-              <button className="rounded bg-white/10 px-2 py-1 hover:bg-white/20 disabled:opacity-40" disabled={idx >= segments.length - 1} onClick={() => pick(idx + 1)}>Next ▶</button>
-            </span>
-          </div>
-        </div>
-        <aside className="rounded-2xl border border-white/10 bg-black/40 p-4 lg:w-[36%]">
-          <DecisionView d={current} />
-        </aside>
-      </div>
+  const total = segments.length * SEGMENT_S;
+  const position = idx * SEGMENT_S + t;
+  const togglePlay = () => {
+    const v = el(front);
+    if (!v) return;
+    if (v.paused) { v.play().catch(() => {}); setPlaying(true); } else { v.pause(); setPlaying(false); }
+  };
 
-      <section className="rounded-2xl border border-white/10 bg-black/30 p-4">
-        <div className="mb-3 flex flex-wrap gap-2">
-          {days.map((d) => (
-            <button key={d} onClick={() => setOpenDay(d)}
-              className={`rounded-full px-3 py-1 text-sm ${d === shownDay ? 'bg-lime-400 text-black' : 'bg-white/10 text-zinc-300 hover:bg-white/20'}`}>{d}</button>
+  return (
+    <div className="flex flex-col gap-5 lg:flex-row">
+      <div className="lg:w-[64%]">
+        <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-white/10 bg-black">
+          {([0, 1] as const).map((p) => (
+            <video
+              key={p} ref={p === 0 ? playerA : playerB} src={srcOf(p)} muted playsInline preload="auto" autoPlay={p === front}
+              className={`absolute inset-0 h-full w-full ${p === front ? 'opacity-100' : 'opacity-0'}`}
+              onLoadedData={() => {
+                // Caught up and the next segment has just arrived and loaded: carry on.
+                if (p !== front && waiting) { setWaiting(false); advance(); }
+              }}
+              onLoadedMetadata={(e) => {
+                if (p !== front) return;
+                if (seekTo.current != null) { e.currentTarget.currentTime = seekTo.current; seekTo.current = null; }
+                if (playing) e.currentTarget.play().catch(() => {});
+              }}
+              onTimeUpdate={(e) => { if (p === front) setT(e.currentTarget.currentTime); }}
+              onEnded={() => { if (p === front) advance(); }}
+            />
           ))}
+          {waiting && <div className="absolute bottom-3 left-3 rounded bg-black/70 px-2 py-1 text-xs text-zinc-300">Caught up with the game: the next two minutes are uploading…</div>}
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {segments.map((s, i) => day(s.start) === shownDay && (
-            <button key={s.path} onClick={() => pick(i)}
-              className={`rounded px-2 py-1 font-mono text-xs ${i === idx ? 'bg-lime-400 text-black' : 'bg-white/[0.06] text-zinc-300 hover:bg-white/15'}`}>{hhmm(s.start)}</button>
-          ))}
+        <div className="mt-2 flex items-center gap-3 text-xs text-zinc-400">
+          <button onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'} className="grid size-8 shrink-0 place-items-center rounded-full bg-white/10 hover:bg-white/20">{playing ? '❚❚' : '▶'}</button>
+          <input type="range" min={0} max={total} step={1} value={Math.min(position, total)} aria-label="Recording timeline"
+            onChange={(e) => jump(Number(e.target.value))} className="w-full accent-lime-400" />
+          <button onClick={() => jump(Math.max(0, total - SEGMENT_S), true)}
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded px-2 py-1 font-black uppercase tracking-widest ${live ? 'bg-red-600 text-white' : 'bg-white/10 text-zinc-300 hover:bg-white/20'}`}>
+            <span className={`size-1.5 rounded-full ${live ? 'animate-pulse bg-white' : 'bg-zinc-400'}`} />Live
+          </button>
         </div>
-      </section>
+        <div className="mt-1 flex justify-between font-mono text-[11px] text-zinc-500">
+          <span>{day(segments[0].start)} {hhmm(segments[0].start)}</span>
+          <span className="text-zinc-300">{day(seg.start)} {new Date(now).toLocaleTimeString(TZ.locale, { timeZone: TZ.timeZone })} Istanbul time</span>
+          <span>{hhmm(segments.at(-1)!.start)}</span>
+        </div>
+      </div>
+      <aside className="rounded-2xl border border-white/10 bg-black/40 p-4 lg:w-[36%]">
+        <DecisionView d={current} />
+      </aside>
     </div>
   );
 }
