@@ -38,6 +38,9 @@ jev.register_skill({
 		local near = x.shelter and U.dist(x.pos, x.shelter) < 64
 		local door = x.n("mcl_doors:wooden_door") > 0 and "a door" or (x.planks >= 6 and "a door from 6 planks" or "no door (doorway gets blocked)")
 		local dark = x.night or x.tod > 0.72
+		if not x.outdoors then
+			return {ok = false, prio = 0, detail = "you are underground or under a roof already"}
+		end
 		if x.blocks < NEED then
 			if x.blocks >= 1 then
 				return {ok = true, prio = (dark and not near) and 84 or 4, detail = string.format(

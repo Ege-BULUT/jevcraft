@@ -40,7 +40,7 @@ local function surface(near)
 end
 
 jev.register_skill({
-	id = "explore", label = "🧭 Explore", timeout = 100,
+	id = "explore", label = "🧭 Explore", timeout = 200,
 	offer = function(p, x)
 		local i = pick_dir(x.pos)
 		local prio = (not x.tree) and 60 or ((x.pick >= 2 and not x.ores.iron) and 44 or 25)
@@ -65,7 +65,7 @@ jev.register_skill({
 			local len = math.sqrt(d[1] * d[1] + d[2] * d[2])
 			local target = surface(vector.offset(p:get_pos(), d[1] / len * 10, 0, d[2] / len * 10))
 			A.status("exploring " .. d[3] .. ", " .. math.floor(U.hdist(start, p:get_pos())) .. " m so far")
-			local ok = target and A.approach(p, vector.offset(target, 0, 1, 0), 1.5, {no_tunnel = true})
+			local ok = target and A.approach(p, vector.offset(target, 0, 1, 0), 1.5, {no_tunnel = fails < 2})
 			if ok then
 				walked = walked + 1
 				mark(p:get_pos())

@@ -53,7 +53,7 @@ jev.register_skill({
 		end
 		-- Staircase down in the direction the player faces.
 		local steps = 0
-		while got() < 10 and steps < 12 do
+		while got() < 10 and steps < 10 and A.feet(p).y > -30 do
 			local f = A.feet(p)
 			local yaw = p:get_look_horizontal()
 			local dx, dz = -math.sin(yaw), math.cos(yaw)

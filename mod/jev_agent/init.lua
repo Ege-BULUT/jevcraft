@@ -402,6 +402,7 @@ minetest.register_globalstep(function(dtime)
 			end
 		end
 		S.last_hp = hp
+		jev.a.unstuck(p)
 		local ok, a, b = coroutine.resume(S.co, dtime)
 		if not ok then
 			minetest.log("error", "[jev_agent] skill " .. S.skill.id .. " crashed: " .. tostring(a))

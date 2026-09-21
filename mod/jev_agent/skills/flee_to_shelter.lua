@@ -5,13 +5,14 @@ jev.register_skill({
 	id = "flee_to_shelter", label = "🏃 Flee to shelter", timeout = 60,
 	offer = function(p, x)
 		local threat = x.hostile and x.hostile.dist <= 16
+			and minetest.line_of_sight(vector.offset(x.pos, 0, 1.5, 0), vector.offset(x.hostile.pos, 0, 1, 0))
 		if x.danger then
 			threat = true
 		end
 		if not threat and not x.night then
 			return nil
 		end
-		local inside = x.shelter and U.dist(x.pos, x.shelter) < 1.5
+		local inside = x.shelter and U.dist(x.pos, x.shelter) < 3
 		if inside then
 			return {ok = false, detail = "you are already inside your shelter", prio = 0}
 		end

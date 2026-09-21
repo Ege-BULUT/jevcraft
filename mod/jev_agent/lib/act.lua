@@ -81,6 +81,17 @@ function A.buildable(pos)
 	return d and d.buildable_to and not A.dangerous(pos)
 end
 
+-- Falling sand/gravel or a bad step can bury the head: dig it out at once
+-- instead of suffocating (a human player would react the same way).
+function A.unstuck(p)
+	local head = vector.round(vector.offset(p:get_pos(), 0, 1.5, 0))
+	local node = minetest.get_node(head)
+	local d = minetest.registered_nodes[node.name]
+	if d and d.walkable and d.diggable ~= false and not d.on_rightclick and minetest.get_item_group(node.name, "door") == 0 then
+		minetest.node_dig(head, node, p)
+	end
+end
+
 -- Movement -------------------------------------------------------------------
 
 -- Moves the player from one feet position to another at walking speed, with a
