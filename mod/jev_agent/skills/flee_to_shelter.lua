@@ -5,6 +5,9 @@ jev.register_skill({
 	id = "flee_to_shelter", label = "🏃 Flee to shelter", timeout = 60,
 	offer = function(p, x)
 		local threat = x.hostile and x.hostile.dist <= 16
+		if x.danger then
+			threat = true
+		end
 		if not threat and not x.night then
 			return nil
 		end
@@ -12,13 +15,14 @@ jev.register_skill({
 		if inside then
 			return {ok = false, detail = "you are already inside your shelter", prio = 0}
 		end
-		local prio = (threat and x.hp <= 8) and 96 or ((x.night and x.shelter) and 72 or 30)
+		local prio = ((threat and x.hp <= 8) or x.danger) and 96 or ((x.night and x.shelter) and 72 or 30)
 		if x.shelter and U.dist(x.pos, x.shelter) < 96 then
 			return {ok = true, prio = prio, detail = "walk into your shelter " .. U.where(x.pos, x.shelter) .. " and shut the door"}
 		end
 		if threat then
-			return {ok = true, prio = prio, detail = "no shelter built; run ~20 m away from " .. x.hostile.short .. " " ..
-				U.where(x.pos, x.hostile.pos)}
+			local h = x.danger or x.hostile
+			return {ok = true, prio = prio, detail = "no shelter near; run ~20 m away from " .. h.short .. " " ..
+				U.where(x.pos, h.pos)}
 		end
 		return {ok = false, detail = "no shelter built yet (build_shelter needs 23 blocks)", prio = 20}
 	end,
@@ -50,7 +54,8 @@ jev.register_skill({
 			end
 			return true, "inside the shelter"
 		end
-		local h = U.first(U.mobs(p:get_pos(), 24), function(m) return m.kind == "hostile" end)
+		local mobs = U.mobs(p:get_pos(), 24)
+		local h = U.first(mobs, function(m) return m.avoid end) or U.first(mobs, function(m) return m.kind == "hostile" end)
 		if not h then
 			return true, "no hostile mob around any more"
 		end

@@ -53,10 +53,13 @@ function jev.scan(p)
 	ctx.furnace = minetest.find_node_near(pos, 16, {"mcl_furnaces:furnace", "mcl_furnaces:furnace_active"}, true)
 	ctx.mobs = U.mobs(pos, 32)
 	ctx.hostile = U.first(ctx.mobs, function(m) return m.kind == "hostile" end)
+	ctx.fightable = U.first(ctx.mobs, function(m) return m.kind == "hostile" and not m.avoid end)
+	ctx.danger = U.first(ctx.mobs, function(m) return m.avoid and m.dist <= 12 end)
 	ctx.prey = U.first(ctx.mobs, function(m) return m.kind == "food" end)
 	ctx.sheep = U.first(ctx.mobs, function(m) return m.name == "mobs_mc:sheep" end)
 	ctx.villager = U.first(ctx.mobs, function(m) return m.kind == "villager" end)
 	ctx.shelter = jev.mem.shelter and minetest.string_to_pos(jev.mem.shelter)
+	ctx.sheltered = (ctx.shelter and U.dist(pos, ctx.shelter) < 1.5) or false
 	ctx.bed = jev.mem.bed and minetest.string_to_pos(jev.mem.bed)
 	if ctx.bed and minetest.get_item_group(minetest.get_node(ctx.bed).name, "bed") == 0
 			and minetest.get_node(ctx.bed).name ~= "ignore" then

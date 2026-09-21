@@ -157,17 +157,25 @@ function U.nearest_exposed(pos, names, r)
 	return best, bd
 end
 
+-- Hostiles not worth meleeing: exploding, ranged-magic or very strong mobs. Flee instead.
+U.AVOID = {stalker = true, witch = true, enderman = true, creeper = true, evoker = true, vindicator = true,
+	ravager = true, iron_golem = true, wither = true, warden = true}
+
 U.FOOD_MOBS = {
 	["mobs_mc:cow"] = true, ["mobs_mc:pig"] = true, ["mobs_mc:sheep"] = true,
 	["mobs_mc:chicken"] = true, ["mobs_mc:rabbit"] = true, ["mobs_mc:mooshroom"] = true,
 }
+
+-- Mobs the agent recently failed to reach (object -> os.time()); skipped for 90 s.
+jev.unreachable = setmetatable({}, {__mode = "k"})
 
 -- Mobs near pos, nearest first: {obj, name, short, kind, dist, pos}.
 function U.mobs(pos, r)
 	local out = {}
 	for _, obj in ipairs(minetest.get_objects_inside_radius(pos, r)) do
 		local e = obj:get_luaentity()
-		if e and e.is_mob and (e.health or 1) > 0 then
+		local skip = jev.unreachable[obj] and os.time() - jev.unreachable[obj] < 90
+		if e and e.is_mob and (e.health or 1) > 0 and not skip then
 			local kind = "other"
 			if U.FOOD_MOBS[e.name] then
 				kind = "food"
@@ -177,8 +185,9 @@ function U.mobs(pos, r)
 				kind = "villager"
 			end
 			local op = obj:get_pos()
-			out[#out + 1] = {obj = obj, name = e.name, short = e.name:gsub("^.*:", ""), kind = kind,
-				dist = U.dist(pos, op), pos = op}
+			local short = e.name:gsub("^.*:", "")
+			out[#out + 1] = {obj = obj, name = e.name, short = short, kind = kind,
+				dist = U.dist(pos, op), pos = op, avoid = kind == "hostile" and U.AVOID[short] or nil}
 		end
 	end
 	table.sort(out, function(a, b) return a.dist < b.dist end)

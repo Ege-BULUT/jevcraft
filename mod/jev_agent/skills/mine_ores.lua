@@ -14,7 +14,7 @@ local function choose(p, x)
 			if x.pick >= k[2] then
 				local prio = k[3]
 				if k[1] == "coal" and x.n("mcl_core:coal_lump") >= 8 then prio = 20 end
-				if k[1] == "iron" and x.pick >= 4 and x.n("mcl_core:iron_ingot") + x.n("mcl_raw_ores:raw_iron") >= 6 then prio = 25 end
+				if k[1] == "iron" and x.n("mcl_core:iron_ingot") + x.n("mcl_raw_ores:raw_iron") >= 6 then prio = 25 end
 				if k[1] == "obsidian" and x.n("mcl_core:obsidian") >= 10 then prio = 5 end
 				return k, o, prio
 			end

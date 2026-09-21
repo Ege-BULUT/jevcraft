@@ -45,9 +45,16 @@ jev.register_skill({
 		local i = pick_dir(x.pos)
 		local prio = (not x.tree) and 60 or ((x.pick >= 2 and not x.ores.iron) and 44 or 25)
 		local vil = x.villager and ("; a villager is " .. U.where(x.pos, x.villager.pos) .. " (village near)") or ""
-		return {ok = true, prio = prio, detail = "walk ~50 m " .. DIRS[i][3] .. " into unvisited land" .. vil}
+		local up = A.outdoors(x.pos) and "" or " (first digs a staircase up to the surface)"
+		return {ok = true, prio = prio, detail = "walk ~50 m " .. DIRS[i][3] .. " into unvisited land" .. up .. vil}
 	end,
 	run = function(p)
+		if not A.outdoors(p:get_pos()) then
+			local ok, why = A.to_surface(p)
+			if not ok then
+				return false, why
+			end
+		end
 		local start = p:get_pos()
 		mark(start)
 		local i = pick_dir(start)

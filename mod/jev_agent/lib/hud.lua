@@ -11,8 +11,8 @@ end
 
 function jev.hud_init(p)
 	huds[p:get_player_name()] = {
-		line1 = add(p, 12, 1.4, 0xFFFFFF),
-		line2 = add(p, 44, 1, 0xFFE070),
+		line1 = add(p, 64, 1.4, 0xFFFFFF),
+		line2 = add(p, 90, 1, 0xFFE070),
 		chosen = "",
 	}
 end
@@ -26,10 +26,12 @@ function jev.hud_set(p, title, status, chosen)
 	if chosen then
 		h.chosen = chosen
 	end
+	-- The HUD font has no emoji glyphs: keep them in the JSON labels only.
+	title = title:gsub("^[^%w]+", "")
 	local text = title .. " - " .. (status or "")
 	if #text > 90 then
 		text = text:sub(1, 87) .. "..."
 	end
 	p:hud_change(h.line1, "text", text)
-	p:hud_change(h.line2, "text", h.chosen ~= "" and ("Chose: " .. h.chosen) or "")
+	p:hud_change(h.line2, "text", h.chosen ~= "" and ("Chose: " .. h.chosen:gsub("^[^%w]+", "")) or "")
 end

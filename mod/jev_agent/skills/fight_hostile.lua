@@ -16,7 +16,11 @@ end
 jev.register_skill({
 	id = "fight_hostile", label = "⚔ Fight hostile", timeout = 60,
 	offer = function(p, x)
-		local h = x.hostile
+		local h = x.fightable
+		if x.danger and (not h or x.danger.dist < h.dist) then
+			return {ok = false, prio = 60, detail = x.danger.short .. " " .. U.where(x.pos, x.danger.pos) ..
+				" is too dangerous to melee (explodes or uses magic): flee instead"}
+		end
 		if not h then
 			return nil
 		end
@@ -29,7 +33,7 @@ jev.register_skill({
 				math.floor(e and e.health or 0), weapon_text(p), x.hp)}
 	end,
 	run = function(p)
-		local h = U.first(U.mobs(p:get_pos(), 12), function(m) return m.kind == "hostile" end)
+		local h = U.first(U.mobs(p:get_pos(), 12), function(m) return m.kind == "hostile" and not m.avoid end)
 		if not h then
 			return false, "no hostile mob nearby any more"
 		end

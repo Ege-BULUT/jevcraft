@@ -113,7 +113,7 @@ function A.follow(p, path, max_steps)
 		local wp = path[i]
 		for _, q in ipairs({wp, vector.offset(wp, 0, 1, 0)}) do
 			if A.solid(q) then
-				local ok = A.dig(p, q)
+				local ok = A.dig(p, q, true)
 				if not ok then
 					return false, "path blocked by " .. U.desc(minetest.get_node(q).name)
 				end
@@ -152,7 +152,7 @@ function A.tunnel(p, target, reach, max_steps)
 		if nx == 0 and nz == 0 then
 			if dy < 0 then
 				local below = vector.offset(f, 0, -1, 0)
-				if A.dangerous(vector.offset(below, 0, -1, 0)) or not A.dig(p, below) then
+				if A.dangerous(vector.offset(below, 0, -1, 0)) or not A.dig(p, below, true) then
 					return false, "cannot dig down"
 				end
 				glide(p, p:get_pos(), stand_pos(below))
@@ -177,7 +177,7 @@ function A.tunnel(p, target, reach, max_steps)
 				if A.liquid(q) and not A.solid(q) then
 					-- swimming through water is fine
 				elseif A.solid(q) then
-					local ok, why = A.dig(p, q)
+					local ok, why = A.dig(p, q, true)
 					if not ok then
 						return false, why or "cannot dig through"
 					end
@@ -328,7 +328,9 @@ function A.best_tool(p, nodename)
 end
 
 -- Digs one node with the best tool, waiting its real dig time.
-function A.dig(p, pos)
+-- clearing = true when digging only to make way: then placed stations
+-- (crafting table, furnace, chest, bed ...) are never broken.
+function A.dig(p, pos, clearing)
 	local node = minetest.get_node(pos)
 	if node.name == "air" or node.name == "ignore" then
 		return node.name == "air"
@@ -345,6 +347,9 @@ function A.dig(p, pos)
 			A.wait(0.3)
 		end
 		return true
+	end
+	if clearing and def.on_rightclick then
+		return false, U.desc(node.name) .. " is in the way"
 	end
 	if A.dangerous(pos) or (A.liquid(pos) and not def.walkable) then
 		return false, "cannot dig a liquid"
@@ -378,7 +383,39 @@ function A.dig(p, pos)
 		return now.name == "air" or not A.solid(pos)
 	end
 	minetest.node_dig(pos, now, p)
-	return minetest.get_node(pos).name ~= node.name
+	local dug = minetest.get_node(pos).name ~= node.name
+	if dug then
+		A.light_up(p)
+	end
+	return dug
+end
+
+-- Underground, keeps the way lit (for viewers and against mob spawns): places a
+-- torch on a nearby wall when it is dark, crafting torches from coal if needed.
+local last_torch
+function A.light_up(p)
+	local head = vector.round(A.head(p))
+	if (minetest.get_node_light(head) or 15) >= 7 or (last_torch and vector.distance(last_torch, head) < 6) then
+		return
+	end
+	if not U.has(p, "mcl_torches:torch") and U.has(p, "group:coal") and U.has(p, "mcl_core:stick") then
+		A.craft(p, "mcl_torches:torch")
+	end
+	if not U.has(p, "mcl_torches:torch") then
+		return
+	end
+	local f = A.feet(p)
+	for _, o in ipairs({{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) do
+		local wall = vector.offset(f, o[1], 1, o[2])
+		local spot = vector.offset(f, 0, 1, 0)
+		local d = U.node_def(wall)
+		if A.solid(wall) and d and not d.on_rightclick and A.buildable(spot) then
+			if A.place(p, spot, "mcl_torches:torch", wall) then
+				last_torch = head
+				return
+			end
+		end
+	end
 end
 
 -- Walks over dropped items near `center` so the item magnet picks them up.
@@ -472,20 +509,56 @@ function A.place_any_block(p, pos)
 end
 
 -- A free spot next to the player (not where the player stands) to put a block.
+-- In a narrow tunnel, digs a wall block at feet level to make room.
 function A.free_spot(p)
 	local f = A.feet(p)
-	for _, o in ipairs({{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {-1, -1}, {1, -1}, {-1, 1}}) do
+	local rings = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {-1, -1}, {1, -1}, {-1, 1}}
+	for _, o in ipairs(rings) do
 		local q = vector.offset(f, o[1], 0, o[2])
 		if A.buildable(q) and A.solid(vector.offset(q, 0, -1, 0)) and not U.node_def(vector.offset(q, 0, -1, 0)).on_rightclick then
 			return q
 		end
 	end
+	for i = 1, 4 do
+		local q = vector.offset(f, rings[i][1], 0, rings[i][2])
+		if A.solid(q) and A.solid(vector.offset(q, 0, -1, 0)) and A.dig(p, q, true) and A.buildable(q) then
+			return q
+		end
+	end
+end
+
+-- True when the position is under open sky.
+function A.outdoors(pos)
+	return (minetest.get_node_light(vector.round(vector.offset(pos, 0, 1, 0)), 0.5) or 0) >= 15
+end
+
+-- Staircases up until the player stands under open sky.
+function A.to_surface(p)
+	local yaw = p:get_look_horizontal()
+	local dx, dz = -math.sin(yaw), math.cos(yaw)
+	if math.abs(dx) > math.abs(dz) then dx, dz = dx > 0 and 1 or -1, 0 else dx, dz = 0, dz > 0 and 1 or -1 end
+	for i = 1, 80 do
+		if A.outdoors(p:get_pos()) then
+			return true
+		end
+		A.status("climbing to the surface, y " .. A.feet(p).y)
+		local f = A.feet(p)
+		local ok, why = A.tunnel(p, vector.offset(f, dx * 3, 3, dz * 3), 0.5, 1)
+		if not ok and why ~= "too far to tunnel" then
+			-- turn and try another direction
+			dx, dz = -dz, dx
+			if i > 8 and why == "died" then
+				return false, why
+			end
+		end
+	end
+	return A.outdoors(p:get_pos()), "could not reach the surface"
 end
 
 -- Crafting ---------------------------------------------------------------------
 
 local function near_node(p, names, r)
-	return minetest.find_node_near(p:get_pos(), r or REACH, names, true)
+	return minetest.find_node_near(vector.round(A.head(p)), r or REACH, names, true)
 end
 A.near_node = near_node
 
@@ -677,6 +750,7 @@ function A.attack(p, obj, max_time)
 	A.wield_weapon(p)
 	local t0 = minetest.get_us_time()
 	local last_pos
+	local best_d, best_t = math.huge, t0
 	while (minetest.get_us_time() - t0) / 1e6 < (max_time or 40) do
 		if not U.alive(obj) then
 			return true, last_pos
@@ -686,6 +760,13 @@ function A.attack(p, obj, max_time)
 		end
 		local op = obj:get_pos()
 		last_pos = op
+		local d_now = vector.distance(p:get_pos(), op)
+		if d_now < best_d - 0.5 then
+			best_d, best_t = d_now, minetest.get_us_time()
+		elseif (minetest.get_us_time() - best_t) / 1e6 > 12 and d_now > 3.5 then
+			jev.unreachable[obj] = os.time()
+			return false, "cannot reach it"
+		end
 		local target = vector.offset(op, 0, 0.6, 0)
 		if vector.distance(A.head(p), target) > 3 then
 			if vector.distance(p:get_pos(), op) > 40 then
@@ -707,6 +788,7 @@ function A.attack(p, obj, max_time)
 			A.face(p, target)
 			local st = p:get_wielded_item()
 			local c = caps(p, st)
+			best_t = minetest.get_us_time() -- hitting counts as progress
 			-- mcl_mobs wears the wielded weapon itself on punch
 			obj:punch(p, c.full_punch_interval or 1, c, vector.direction(p:get_pos(), op))
 			A.wait(math.max(c.full_punch_interval or 0.8, 0.6))

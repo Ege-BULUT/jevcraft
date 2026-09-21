@@ -41,7 +41,7 @@ for _, id in ipairs({
 	"eat", "fight_hostile", "flee_to_shelter", "sleep", "gather_wood", "craft_planks", "craft_sticks",
 	"craft_crafting_table", "craft_wooden_tools", "mine_stone", "craft_stone_tools", "craft_furnace",
 	"mine_ores", "smelt", "craft_iron_tools", "hunt_food", "build_shelter", "craft_bed", "farm",
-	"explore", "trade_with_villager", "build_nether_portal",
+	"explore", "trade_with_villager", "build_nether_portal", "wait_out_night", "recover_items",
 }) do
 	dofile(MP .. "/skills/" .. id .. ".lua")
 end
@@ -315,7 +315,7 @@ minetest.register_on_dieplayer(function(player, reason)
 		S.skill, S.co = nil, nil
 	end
 	S.mode = "dead"
-	S.death = {cause = cause, pos = pos}
+	S.death = {cause = cause, pos = pos, time = os.time()}
 	jev.mem.deaths = (jev.mem.deaths or 0) + 1
 	jev.save_mem()
 	log("died: " .. cause .. " at " .. minetest.pos_to_string(vector.round(pos)))
@@ -376,7 +376,8 @@ minetest.register_on_leaveplayer(function(player)
 	end
 end)
 
-local INTERRUPTIBLE = {fight_hostile = false, flee_to_shelter = false, eat = false, sleep = false}
+local INTERRUPTIBLE = {fight_hostile = false, flee_to_shelter = false, eat = false, sleep = false,
+	build_shelter = false}
 
 minetest.register_globalstep(function(dtime)
 	local p = minetest.get_player_by_name(PLAYER)

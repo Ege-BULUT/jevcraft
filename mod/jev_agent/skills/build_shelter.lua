@@ -5,20 +5,55 @@ local NEED = 23
 local RING = {{-1, -1}, {0, -1}, {1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}}
 local DOOR = {0, -1}
 
+-- Emergency shelter: dig two blocks down and close the hole above the head.
+local function burrow(p)
+	local f = A.feet(p)
+	for k = 1, 3 do
+		local q = vector.offset(f, 0, -k, 0)
+		if A.dangerous(q) or A.liquid(q) then
+			return false, "cannot burrow here: " .. U.desc(minetest.get_node(q).name) .. " below"
+		end
+	end
+	for k = 1, 2 do
+		local q = vector.offset(f, 0, -k, 0)
+		if not A.dig(p, q, true) then
+			return false, "cannot dig down"
+		end
+		A.glide(p, p:get_pos(), vector.offset(q, 0, -0.5, 0))
+	end
+	A.collect(p, p:get_pos(), 2)
+	if not A.buildable(f) or not A.place_any_block(p, f) then
+		return false, "could not seal the hole"
+	end
+	local c = vector.offset(f, 0, -2, 0)
+	jev.mem.shelter = minetest.pos_to_string(c)
+	jev.mem.shelter_door = nil
+	jev.save_mem()
+	return true, "burrowed into the ground at " .. U.pos_text(c) .. " and sealed the top"
+end
+
 jev.register_skill({
 	id = "build_shelter", label = "🏠 Build shelter", timeout = 120,
 	offer = function(p, x)
 		local near = x.shelter and U.dist(x.pos, x.shelter) < 64
 		local door = x.n("mcl_doors:wooden_door") > 0 and "a door" or (x.planks >= 6 and "a door from 6 planks" or "no door (doorway gets blocked)")
+		local dark = x.night or x.tod > 0.72
 		if x.blocks < NEED then
-			return {ok = false, prio = (x.night and not near) and 45 or 5, detail = string.format(
+			if x.blocks >= 1 then
+				return {ok = true, prio = (dark and not near) and 84 or 4, detail = string.format(
+					"only %d blocks (hut needs %d): dig a 2-deep hole here and seal the top with 1 block", x.blocks, NEED)}
+			end
+			return {ok = false, prio = (dark and not near) and 45 or 5, detail = string.format(
 				"need %d building blocks (cobble/dirt/planks), have %d", NEED, x.blocks)}
 		end
-		local prio = ((x.night or x.tod > 0.70) and not near) and 68 or (near and 3 or 15)
+		local prio = (dark and not near) and 84 or (near and 3 or 15)
 		return {ok = true, prio = prio, detail = string.format("3x3 hut around you from %d of your %d blocks, with %s%s",
 			NEED, x.blocks, door, near and ("; you already have a shelter " .. U.where(x.pos, x.shelter)) or "")}
 	end,
 	run = function(p)
+		if A.block_count(p) < NEED then
+			return burrow(p)
+		end
 		local c = A.feet(p)
 		if not A.standable(c) then
 			return false, "not standing on solid ground"

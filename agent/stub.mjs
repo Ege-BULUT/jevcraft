@@ -3,13 +3,18 @@
 import http from 'node:http';
 
 const PORT = Number(process.argv[2] || process.env.PORT || 8787);
-let lastFailed = null; // skill id that failed last time; skipped once
+// Heuristic: the mod lists feasible options first, most relevant first. Take the
+// first feasible one, skipping skills that failed in the last 3 decisions.
+let turn = 0;
+const failedAt = {};
 
 function choose({ state = '', options = [] }) {
+  turn++;
   const m = /Last: (\S+) FAILED/.exec(state);
-  lastFailed = m ? m[1] : null;
+  if (m) failedAt[m[1]] = turn;
   const feasible = options.filter((o) => !/^not possible/i.test(o.detail || ''));
-  const pick = feasible.find((o) => o.id !== lastFailed) || feasible[0] || options[0];
+  const fresh = feasible.filter((o) => !(turn - (failedAt[o.id] ?? -99) <= 3));
+  const pick = fresh[0] || feasible[0] || options[0];
   return pick && pick.id;
 }
 
