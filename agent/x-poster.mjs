@@ -80,12 +80,15 @@ function parse(lines) {
       out.push({ at, k: 'respawn', p });
     } else if ((d = /\[jev_agent\] skill (\w+) succeeded: (.*)$/.exec(b))) {
       const [, skill, msg] = d;
-      for (const [, n, item] of msg.matchAll(/\+(\d+) ([a-z][a-z ]*?)(?=,|\])/g)) if (GAINS.test(item)) out.push({ at, k: 'gain', v: item.trim(), n: Number(n) });
+      // Count only the inventory delta in [brackets]: the message text often repeats it ("+3 raw
+      // iron ... [+3 raw iron]"), and picking items back up after a death is no new gain.
+      const delta = /\[([^\]]*)\]\s*$/.exec(msg)?.[1] ?? '';
+      if (skill !== 'recover_items') for (const [, n, item] of `${delta},`.matchAll(/\+(\d+) ([a-z][a-z ]*?)(?=,)/g)) if (GAINS.test(item)) out.push({ at, k: 'gain', v: item.trim(), n: Number(n) });
       const kill = /killed ([a-z ]+?)(?: \[|$)/.exec(msg);
       if (kill) out.push({ at, k: 'kill', v: kill[1].trim() });
       if (skill.startsWith('craft_')) {
         // Craft skills also pick up whatever they dig on the way; count only made things.
-        for (const [, n, item] of msg.matchAll(/\+(\d+) ([a-z][a-z ]*?)(?=,|\])/g)) if (CRAFTED.test(item)) out.push({ at, k: 'craft', v: item.trim(), n: Number(n) });
+        for (const [, n, item] of `${delta},`.matchAll(/\+(\d+) ([a-z][a-z ]*?)(?=,)/g)) if (CRAFTED.test(item)) out.push({ at, k: 'craft', v: item.trim(), n: Number(n) });
       }
       if (MILESTONES[skill] && !state.seen.includes(skill)) { state.seen.push(skill); out.push({ at, k: 'milestone', v: MILESTONES[skill] }); }
       if (skill === 'mine_ores') for (const [ore, text] of Object.entries(ORES)) {
