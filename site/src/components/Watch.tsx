@@ -4,7 +4,7 @@ import { browserDb, type Decision } from '@/lib/db';
 import type { Segment } from '@/lib/segments';
 
 const SEGMENT_S = 120; // the recorder's segment length
-// One fixed locale and zone (the machine's, Istanbul), so the server render and the browser agree.
+// One fixed locale and zone (GMT+3, the game machine's), so the server render and the browser agree.
 const TZ = { locale: 'en-GB', timeZone: 'Europe/Istanbul' } as const;
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString(TZ.locale, { hour: '2-digit', minute: '2-digit', timeZone: TZ.timeZone });
 const day = (iso: string) => new Date(iso).toLocaleDateString(TZ.locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: TZ.timeZone });
@@ -133,7 +133,7 @@ export function Watch({ initial, at }: { initial: Segment[]; at?: string }) {
         </div>
         <div className="mt-1 flex justify-between font-mono text-[11px] text-zinc-500">
           <span>{day(segments[0].start)} {hhmm(segments[0].start)}</span>
-          <span className="text-zinc-300">{day(seg.start)} {new Date(now).toLocaleTimeString(TZ.locale, { timeZone: TZ.timeZone })} Istanbul time</span>
+          <span className="text-zinc-300">{day(seg.start)} {new Date(now).toLocaleTimeString(TZ.locale, { timeZone: TZ.timeZone })} GMT+3</span>
           <span>{hhmm(segments.at(-1)!.start)}</span>
         </div>
       </div>

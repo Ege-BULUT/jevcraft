@@ -1,7 +1,6 @@
-import { timingSafeEqual } from 'node:crypto';
 import { experimental_evaluate as evaluate, InvalidResponseDataError } from 'ai';
 import { GatewayRateLimitError } from '@ai-sdk/gateway';
-import { adminDb } from '@/lib/server';
+import { adminDb, authorised } from '@/lib/server';
 
 // Called by the jev_agent mod on the game machine: it sends the situation and the skills it can
 // run now, Jev picks one. Only that machine holds the key, so nobody else can spend the budget.
@@ -16,12 +15,6 @@ const isOption = (o: unknown): o is Option => {
   return !!x && [x.id, x.label, x.detail].every((v) => typeof v === 'string') &&
     x.id.length <= 40 && x.label.length <= 60 && x.detail.length <= 400;
 };
-
-function authorised(req: Request) {
-  const want = Buffer.from(process.env.JEVCRAFT_KEY ?? '');
-  const got = Buffer.from(req.headers.get('x-jevcraft-key') ?? '');
-  return want.length > 0 && got.length === want.length && timingSafeEqual(want, got);
-}
 
 export async function POST(req: Request) {
   if (!authorised(req)) return Response.json({ error: 'unauthorised' }, { status: 401 });

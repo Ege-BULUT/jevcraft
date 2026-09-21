@@ -47,5 +47,9 @@ while true; do
     log "starting the uploader"
     uv run --script "$ROOT/agent/uploader.py" "$RUN/segments" "$HF_REPO" >> "$RUN/uploader.log" 2>&1 &
   fi
+  if ! pgrep -f "agent/x-poster.mjs" >/dev/null; then
+    log "starting the X poster"
+    X_LIVE=${X_LIVE:-0} node "$ROOT/agent/x-poster.mjs" >> "$RUN/x-poster.log" 2>&1 &
+  fi
   sleep 15
 done
