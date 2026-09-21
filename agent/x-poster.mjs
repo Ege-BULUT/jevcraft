@@ -22,6 +22,8 @@ const SITE = 'https://jevcraft.vercel.app';
 const LIVE = process.env.X_LIVE === '1';
 const WINDOW = 2 * 3_600_000;
 const TZ = 'Europe/Istanbul'; // shown as GMT+3
+// Two or three tags help discovery; more reads as spam. Not #Minecraft: this game is not Minecraft.
+const TAGS = '#AI #AIagents #VoxeLibre';
 
 const MILESTONES = {
   gather_wood: 'chopped its first logs', craft_crafting_table: 'built its first crafting table',
@@ -161,7 +163,7 @@ function tweet(r, link) {
   const extras = []; // dropped from the end when the post runs long, so the biggest moment stays
   if (r.biggest) extras.push(`⭐ ${r.biggest.text}, ${clock(r.biggest.at)} GMT+3`);
   if (r.advancements.length) extras.push(`🏆 ${r.advancements.slice(0, 3).join(', ')}${r.advancements.length > 3 ? ` +${r.advancements.length - 3}` : ''}`);
-  const foot = ['', `Full report ▶ ${link}`];
+  const foot = ['', `Full report ▶ ${link}`, TAGS]; // tags come before the optional extras
   for (let n = extras.length; n >= 0; n--) {
     const text = [...head, ...extras.slice(0, n), ...foot].join('\n');
     if (tweetLength(text) <= 280) return text;
@@ -192,6 +194,15 @@ const site = (method, body) => fetch(`${SITE}/api/report`, {
 // when their tokens are in the keychain.
 const has = (s) => { try { key(s); return true; } catch { return false; } };
 
+function hashtagFacets(text) {
+  const out = [];
+  for (const m of text.matchAll(/(^|\s)#([A-Za-z][\w]*)/g)) {
+    const byteStart = Buffer.byteLength(text.slice(0, m.index + m[1].length));
+    out.push({ index: { byteStart, byteEnd: byteStart + Buffer.byteLength(`#${m[2]}`) }, features: [{ $type: 'app.bsky.richtext.facet#tag', tag: m[2] }] });
+  }
+  return out;
+}
+
 async function share(p) {
   const run = async (channel, fn) => {
     if (p.done[channel] !== false) return;
@@ -221,7 +232,10 @@ async function share(p) {
     const text = p.text, start = Buffer.from(text).indexOf(Buffer.from(p.link)); // facets count UTF-8 bytes
     await post('com.atproto.repo.createRecord', { repo: session.did, collection: 'app.bsky.feed.post', record: {
       $type: 'app.bsky.feed.post', text, createdAt: new Date().toISOString(),
-      facets: start < 0 ? [] : [{ index: { byteStart: start, byteEnd: start + Buffer.byteLength(p.link) }, features: [{ $type: 'app.bsky.richtext.facet#link', uri: p.link }] }],
+      facets: [
+        ...(start < 0 ? [] : [{ index: { byteStart: start, byteEnd: start + Buffer.byteLength(p.link) }, features: [{ $type: 'app.bsky.richtext.facet#link', uri: p.link }] }]),
+        ...hashtagFacets(text), // Bluesky only makes a #tag clickable when it is marked up
+      ],
       embed: { $type: 'app.bsky.embed.external', external: { uri: p.link, title: 'JevCraft status update', description: 'What Jev did in the block world in the last two hours.', thumb: thumb.blob } },
     } }, auth);
   });
