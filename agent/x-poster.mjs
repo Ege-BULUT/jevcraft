@@ -221,9 +221,13 @@ async function share(p) {
       await site('PATCH', { id: p.id, tweet_id: r.json.data.id });
       return;
     }
+    // The report card, ready to attach by hand: X shows no link card for this account.
+    const dir = `${process.env.HOME}/Downloads/jev`;
+    execFileSync('mkdir', ['-p', dir]);
+    writeFileSync(`${dir}/jevcraft-report-${p.id}.png`, Buffer.from(await fetch(`${SITE}/api/og?report=${p.id}`).then((r) => r.arrayBuffer())));
     const intent = `https://x.com/intent/post?text=${encodeURIComponent(p.text)}`;
     appendFileSync(`${ROOT}run/x-intents.txt`, `${new Date().toISOString()} report ${p.id}\n${intent}\n`);
-    execFileSync('terminal-notifier', ['-title', 'JevCraft', '-subtitle', 'Status update ready', '-message', 'Click to post it on X',
+    execFileSync('terminal-notifier', ['-title', 'JevCraft', '-subtitle', 'Status update ready', '-message', `Click to post it on X; card in Downloads/jev/jevcraft-report-${p.id}.png`,
       '-open', intent, '-sound', 'Glass', '-group', `jevcraft-${p.id}`]);
   });
   await run('bsky', async () => {
