@@ -61,6 +61,7 @@ function PokeCard({ c }: { c: Card }) {
   // The tilt lives on the wrapper so the SSS god rays, which reach outside the card, tilt with it.
   return (
     <div ref={wrap} className={`pk-wrap w-${c.tier} ${Object.keys(tilt).length ? 'pk-held' : ''}`} style={tilt} onPointerMove={move} onPointerLeave={() => setTilt({})}>
+      {['A', 'S', 'SS', 'SSS'].includes(c.tier) && <span className="pk-frame" aria-hidden><i /></span>}
       {c.tier === 'SSS' && <span className="pk-dust" aria-hidden />}
       <div className={`pk-card tier-${c.tier}`}>
         <div className="pk-head"><span className="pk-title">{c.title}</span><span className="pk-tier">{c.tier}</span></div>
