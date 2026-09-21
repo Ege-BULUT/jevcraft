@@ -4,13 +4,14 @@ import { HF_REPO, listSegments } from '@/lib/segments';
 
 export const revalidate = 15;
 
-export default async function Home() {
+export default async function Home({ searchParams }: PageProps<'/'>) {
   const segments = await listSegments();
+  const { t } = await searchParams; // ?t=<ISO time>: open the recording at that moment (links in posts)
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 md:px-8">
       <section className="max-w-3xl">
         <h1 className="text-4xl font-black tracking-tight md:text-5xl">
-          Jev plays a block world, <span className="text-lime-400">around the clock.</span>
+          Jev lives within <span className="text-lime-400">block world.</span>
         </h1>
         <p className="mt-3 text-zinc-400">
           TypeSafe&apos;s Jev never writes a word. Every few seconds it looks at its health, hunger, inventory and
@@ -18,10 +19,11 @@ export default async function Home() {
           plays unattended from 21 to 25 September 2026, and every minute is recorded. The game is{' '}
           <a className="underline" href="https://content.luanti.org/packages/wuzzy/mineclone2/">VoxeLibre</a>, a free
           game in the style of Minecraft on the <a className="underline" href="https://www.luanti.org/">Luanti</a> engine.
+          The stream may pause now and then; when it does, it will be back as soon as possible.
         </p>
       </section>
       <NowPlaying />
-      <Watch initial={segments} />
+      <Watch initial={segments} at={typeof t === 'string' ? t : undefined} />
       <p className="text-xs text-zinc-600">
         Recordings: <a className="underline" href={`https://huggingface.co/datasets/${HF_REPO}`}>huggingface.co/datasets/{HF_REPO}</a> (CC BY-SA 4.0).
         Not affiliated with Mojang, Microsoft or TypeSafe AI. Gaps mean the game was paused while its machine was offline.

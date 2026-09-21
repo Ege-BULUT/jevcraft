@@ -9,11 +9,11 @@ const TZ = { locale: 'en-GB', timeZone: 'Europe/Istanbul' } as const;
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString(TZ.locale, { hour: '2-digit', minute: '2-digit', timeZone: TZ.timeZone });
 const day = (iso: string) => new Date(iso).toLocaleDateString(TZ.locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: TZ.timeZone });
 
-export function Watch({ initial }: { initial: Segment[] }) {
+export function Watch({ initial, at }: { initial: Segment[]; at?: string }) {
   const [segments, setSegments] = useState(initial);
   const [idx, setIdx] = useState(Math.max(0, initial.length - 1));
   const [front, setFront] = useState<0 | 1>(0); // which of the two players is on screen
-  const [live, setLive] = useState(true);       // follow the newest segment, a few minutes behind the game
+  const [live, setLive] = useState(!at);        // follow the newest segment, a few minutes behind the game
   const [waiting, setWaiting] = useState(false); // live and at the end: the next segment is still uploading
   const [playing, setPlaying] = useState(true);
   const [t, setT] = useState(0);
@@ -42,12 +42,23 @@ export function Watch({ initial }: { initial: Segment[] }) {
       if (!r?.ok) return;
       const next = (await r.json()) as Segment[];
       setSegments(next);
-      if (!loaded) { setLoaded(true); if (live) setIdx(Math.max(0, next.length - 1)); }
+      if (!loaded) {
+        setLoaded(true);
+        const want = at ? Date.parse(at) : NaN;
+        if (!Number.isNaN(want) && next.length) {
+          // The segment that covers that moment, or the last one before it (a pause leaves gaps).
+          let i = 0;
+          next.forEach((s, k) => { if (Date.parse(s.start) <= want) i = k; });
+          seekTo.current = Math.max(0, Math.min(SEGMENT_S - 1, (want - Date.parse(next[i].start)) / 1000));
+          setT(seekTo.current);
+          setIdx(i);
+        } else if (live) setIdx(Math.max(0, next.length - 1));
+      }
     };
     if (!loaded) poll();
     const iv = setInterval(poll, 20_000);
     return () => clearInterval(iv);
-  }, [loaded, live]);
+  }, [loaded, live, at]);
 
   // Jump anywhere on the whole timeline: pick the segment, then the second within it.
   const jump = (sec: number, follow = false) => {
