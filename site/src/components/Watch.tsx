@@ -4,8 +4,10 @@ import { browserDb, type Decision } from '@/lib/db';
 import type { Segment } from '@/lib/segments';
 
 const SEGMENT_S = 120; // the recorder's segment length
-const hhmm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-const day = (iso: string) => new Date(iso).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+// One fixed locale and zone (the machine's, Istanbul), so the server render and the browser agree.
+const TZ = { locale: 'en-GB', timeZone: 'Europe/Istanbul' } as const;
+const hhmm = (iso: string) => new Date(iso).toLocaleTimeString(TZ.locale, { hour: '2-digit', minute: '2-digit', timeZone: TZ.timeZone });
+const day = (iso: string) => new Date(iso).toLocaleDateString(TZ.locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: TZ.timeZone });
 
 export function Watch({ initial }: { initial: Segment[] }) {
   const [segments, setSegments] = useState(initial);
@@ -81,7 +83,7 @@ export function Watch({ initial }: { initial: Segment[] }) {
               <button onClick={goLive} className={`inline-flex items-center gap-1.5 rounded px-2 py-1 font-black uppercase tracking-widest ${live ? 'bg-red-600 text-white' : 'bg-white/10 text-zinc-300 hover:bg-white/20'}`}>
                 <span className={`size-1.5 rounded-full ${live ? 'animate-pulse bg-white' : 'bg-zinc-400'}`} />Live
               </button>
-              {day(seg.start)} · {hhmm(seg.start)}–{hhmm(new Date(Date.parse(seg.start) + SEGMENT_S * 1000).toISOString())}</span>
+              {day(seg.start)} · {hhmm(seg.start)}–{hhmm(new Date(Date.parse(seg.start) + SEGMENT_S * 1000).toISOString())} Istanbul time</span>
             <span className="flex gap-2">
               <button className="rounded bg-white/10 px-2 py-1 hover:bg-white/20 disabled:opacity-40" disabled={idx === 0} onClick={() => pick(idx - 1)}>◀ Previous</button>
               <button className="rounded bg-white/10 px-2 py-1 hover:bg-white/20 disabled:opacity-40" disabled={idx >= segments.length - 1} onClick={() => pick(idx + 1)}>Next ▶</button>
@@ -118,7 +120,7 @@ export function DecisionView({ d }: { d: Decision | null }) {
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
         <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">Jev&apos;s choice</h3>
-        <span className="font-mono text-xs text-zinc-500">{new Date(d.at).toLocaleTimeString()} · {d.latency_ms} ms</span>
+        <span className="font-mono text-xs text-zinc-500">{new Date(d.at).toLocaleTimeString(TZ.locale, { timeZone: TZ.timeZone })} · {d.latency_ms} ms</span>
       </div>
       <ul className="flex flex-col gap-1.5">
         {rows.map((o) => {
