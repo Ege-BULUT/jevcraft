@@ -1,4 +1,4 @@
-// Records only the Luanti game window, never the display, as 10-minute H.264 segments.
+// Records only the Luanti game window, never the display, as 2-minute H.264 segments.
 //
 //   swiftc -O Recorder.swift -o jevcraft-recorder
 //   ./jevcraft-recorder <out-dir> <flag-file>
@@ -13,7 +13,7 @@ import CoreMedia
 import Foundation
 import ScreenCaptureKit
 
-let SEGMENT_SECONDS = 600.0
+let SEGMENT_SECONDS = 120.0 // short, so the site's live view trails the game by only a few minutes
 let WIDTH = 1280, HEIGHT = 720, FPS: Int32 = 30, BITRATE = 1_200_000
 let MAX_BACKLOG: UInt64 = 3 * 1024 * 1024 * 1024
 

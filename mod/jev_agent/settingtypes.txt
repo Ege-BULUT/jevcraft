@@ -1,0 +1,11 @@
+# URL the agent POSTs decision requests to.
+jev_agent.decide_url (Decision endpoint URL) string http://127.0.0.1:8787/decide
+
+# Optional secret, sent as the x-jevcraft-key header when non-empty.
+jev_agent.key (Decision endpoint key) string
+
+# Seconds to wait for a decision before treating the endpoint as offline.
+jev_agent.decide_timeout (Decision timeout) int 60 5 600
+
+# Name of the player the agent controls.
+jev_agent.player (Controlled player) string Jev
