@@ -12,6 +12,9 @@ local function pick_input(p)
 		for g in pairs(SKIP) do
 			if minetest.get_item_group(name, g) > 0 then skip = true end
 		end
+		if minetest.registered_tools[name] or minetest.get_item_group(name, "armor") > 0 then
+			skip = true -- never melt down gear
+		end
 		if out and not skip then
 			local score = name:find("raw_ores") and 3 or (U.food_value(out) > 0 and 2 or 1)
 			if not best or score > best.score then
