@@ -6,6 +6,17 @@ import { HF_REPO, listSegments } from '@/lib/segments';
 
 export const revalidate = 15;
 
+// Share card: a status-update link shows that report's numbers, any other link the site card.
+export async function generateMetadata({ searchParams }: PageProps<'/'>) {
+  const { report } = await searchParams;
+  const image = typeof report === 'string' && /^\d+$/.test(report) ? `/api/og?report=${report}` : '/api/og';
+  return {
+    metadataBase: new URL('https://jevcraft.vercel.app'),
+    openGraph: { images: [{ url: image, width: 1200, height: 630 }] },
+    twitter: { card: 'summary_large_image', images: [image] },
+  };
+}
+
 export default async function Home({ searchParams }: PageProps<'/'>) {
   const segments = await listSegments();
   const { t, report } = await searchParams; // ?t=<ISO time>: that moment of the recording; ?report=<id>: that status update
