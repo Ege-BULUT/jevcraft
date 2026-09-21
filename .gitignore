@@ -1,0 +1,6 @@
+run/
+recorder/jevcraft-recorder
+node_modules/
+.env*
+.vercel
+.next/
