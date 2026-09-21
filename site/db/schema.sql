@@ -66,3 +66,16 @@ create table if not exists jc_reports (
 alter table jc_reports enable row level security;
 drop policy if exists "public read" on jc_reports;
 create policy "public read" on jc_reports for select using (true);
+
+-- Running totals for the whole run, pushed by the poster every minute (one row, id 1).
+create table if not exists jc_stats (
+  id   integer primary key default 1 check (id = 1),
+  at   timestamptz not null default now(),
+  data jsonb not null
+);
+alter table jc_stats enable row level security;
+drop policy if exists "public read" on jc_stats;
+create policy "public read" on jc_stats for select using (true);
+do $$ begin
+  alter publication supabase_realtime add table jc_stats;
+exception when duplicate_object then null; end $$;

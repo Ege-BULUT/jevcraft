@@ -1,6 +1,7 @@
 import { Chat } from '@/components/Chat';
 import { NowPlaying } from '@/components/NowPlaying';
 import { Reports } from '@/components/Reports';
+import { Stats } from '@/components/Stats';
 import { Watch } from '@/components/Watch';
 import { HF_REPO, listSegments } from '@/lib/segments';
 
@@ -35,6 +36,7 @@ export default async function Home({ searchParams }: PageProps<'/'>) {
           The stream may pause now and then; when it does, it will be back as soon as possible.
         </p>
       </section>
+      <Stats />
       <NowPlaying />
       <Watch initial={segments} at={typeof t === 'string' ? t : undefined} />
       <Chat />
