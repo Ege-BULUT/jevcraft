@@ -35,3 +35,23 @@ create or replace function jc_add_spend(p_tokens integer) returns bigint languag
   returning input_tokens;
 $$;
 revoke execute on function jc_add_spend(integer) from public, anon, authenticated;
+
+-- Live chat. Rows are written only by /api/chat (service role); visitors read name and body only.
+create table if not exists jc_chat (
+  id      bigserial primary key,
+  at      timestamptz not null default now(),
+  name    text not null check (char_length(name) between 1 and 24),
+  body    text not null check (char_length(body) between 1 and 280),
+  ip_hash text not null   -- salted hash of the sender's IP, for rate limits; never readable by visitors
+);
+create index if not exists jc_chat_at on jc_chat (at desc);
+create index if not exists jc_chat_ip_at on jc_chat (ip_hash, at desc);
+alter table jc_chat enable row level security;
+drop policy if exists "public read" on jc_chat;
+create policy "public read" on jc_chat for select using (true);
+-- RLS cannot hide a column, column privileges can: visitors may select everything but ip_hash.
+revoke select on jc_chat from anon, authenticated;
+grant select (id, at, name, body) on jc_chat to anon, authenticated;
+do $$ begin
+  alter publication supabase_realtime add table jc_chat (id, at, name, body);
+exception when duplicate_object then null; end $$;
