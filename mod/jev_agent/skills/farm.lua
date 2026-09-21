@@ -55,7 +55,7 @@ local function plant(p)
 		local spot
 		for _, q in ipairs(soil) do
 			local above = vector.offset(q, 0, 1, 0)
-			if minetest.get_node(above).name == "air" and not vector.equals(above, A.feet(p)) then
+			if (minetest.get_node(above).name == "air" or minetest.get_node(above).name == "jev_agent:glow") and not vector.equals(above, A.feet(p)) then
 				spot = q
 				break
 			end
