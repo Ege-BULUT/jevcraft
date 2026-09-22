@@ -46,25 +46,37 @@ body {
 /* B and up: a light sweep across the card. */
 .tier-B::after, .tier-A::after, .tier-S::after, .tier-SS::after, .tier-SSS::after {
   content: ''; position: absolute; inset: -40%; pointer-events: none;
-  background: linear-gradient(115deg, #0000 40%, #ffffff55 50%, #0000 60%); animation: pk-sweep 3.5s ease-in-out infinite;
+  background: linear-gradient(115deg, #0000 40%, #ffffff55 50%, #0000 60%); animation: pk-sweep 3.5s ease-in-out infinite; will-change: transform;
 }
 @keyframes pk-sweep { from { transform: translateX(-60%); } to { transform: translateX(60%); } }
 
-/* S and up: holographic foil that follows the pointer. */
+/* S and up: holographic foil. A pre-drawn rainbow strip (two identical periods) slides across with
+   transform, so the compositor moves it and nothing repaints; the pointer highlight sits in the card's
+   background and only repaints when the pointer moves. */
 .tier-S::before, .tier-SS::before, .tier-SSS::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: color-dodge; opacity: .45;
-  background: radial-gradient(circle at var(--mx) var(--my), #ffffff55, #0000 45%),
-    linear-gradient(125deg, #ff008455, #fca40055, #ffff0055, #00ff8a55, #00cfff55, #cc4cfa55);
-  background-size: 100% 100%, 300% 300%; animation: pk-holo 6s linear infinite;
+  content: ''; position: absolute; top: -60%; left: -60%; width: 440%; height: 220%; pointer-events: none;
+  mix-blend-mode: color-dodge; opacity: .45; will-change: transform;
+  background: linear-gradient(90deg, #ff008455, #fca40055, #ffff0055, #00ff8a55, #00cfff55, #cc4cfa55, #ff008455,
+    #fca40055, #ffff0055, #00ff8a55, #00cfff55, #cc4cfa55, #ff008455);
+  animation: pk-holo 6s linear infinite;
 }
-@keyframes pk-holo { from { background-position: 0 0, 0% 50%; } to { background-position: 0 0, 300% 50%; } }
+@keyframes pk-holo { from { transform: rotate(35deg) translateX(0); } to { transform: rotate(35deg) translateX(-50%); } }
+.tier-S.pk-card, .tier-SS.pk-card, .tier-SSS.pk-card {
+  background: radial-gradient(circle at var(--mx) var(--my), #ffffff2a, #0000 45%) padding-box,
+    linear-gradient(155deg, var(--a), var(--b)) padding-box; }
 
-/* SS and up: glitter. */
-.tier-SS .pk-art, .tier-SSS .pk-art {
-  background: radial-gradient(#ffffffb0 0.6px, #0000 1.2px) 0 0 / 17px 13px, radial-gradient(#ffffff70 0.6px, #0000 1.2px) 8px 6px / 23px 19px, #0004;
-  animation: pk-glitter 1.6s steps(2) infinite;
-}
-@keyframes pk-glitter { 50% { background-position: 7px 3px, 0 10px, 0 0; } }
+/* SS and up: glitter. Two sparkle layers take turns through opacity (composited) instead of moving a
+   background every frame. */
+.tier-SS .pk-art, .tier-SSS .pk-art { position: relative; background: #0004; }
+.pk-art > svg { position: relative; z-index: 1; }
+.tier-SS .pk-art::before, .tier-SSS .pk-art::before, .tier-SS .pk-art::after, .tier-SSS .pk-art::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; will-change: opacity; }
+.tier-SS .pk-art::before, .tier-SSS .pk-art::before { animation: pk-on 1.6s linear infinite;
+  background: radial-gradient(#ffffffb0 0.6px, #0000 1.2px) 0 0 / 17px 13px, radial-gradient(#ffffff70 0.6px, #0000 1.2px) 8px 6px / 23px 19px; }
+.tier-SS .pk-art::after, .tier-SSS .pk-art::after { animation: pk-off 1.6s linear infinite;
+  background: radial-gradient(#ffffffb0 0.6px, #0000 1.2px) 7px 3px / 17px 13px, radial-gradient(#ffffff70 0.6px, #0000 1.2px) 0 10px / 23px 19px; }
+@keyframes pk-on { 0%, 49.9% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes pk-off { 0%, 49.9% { opacity: 0; } 50%, 100% { opacity: 1; } }
 
 /* SSS: the card sways in 3D on its own until the pointer takes over. */
 .w-SSS:not(.pk-held) .tier-SSS { animation: pk-sway 5s ease-in-out infinite; }
@@ -80,6 +92,7 @@ body {
 @keyframes pk-stars { 0% { transform: translateY(8px); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(-46px); opacity: 0; } }
 
 .pk-wrap { position: relative; isolation: isolate; }
+.w-A, .w-S, .w-SS, .w-SSS, .w-A::before, .tier-SSS { will-change: transform; }
 .pk-wrap::before, .pk-wrap::after { content: none; position: absolute; pointer-events: none; z-index: -1; }
 
 /* B (gold): a gold-and-silver frame instead of a flat one. */
@@ -90,8 +103,8 @@ body {
 /* A: a spinning gold frame, an aggressive glow, and the card lifts off the table and hovers.
    The spinning frame is a layer behind the card (.pk-frame) rotated with transform, so it costs no
    repaint; the card's border is transparent and lets it show through. */
-.tier-A.pk-card, .tier-S.pk-card, .tier-SS.pk-card, .tier-SSS.pk-card { border-color: transparent;
-  background: linear-gradient(155deg, var(--a), var(--b)) padding-box; }
+.tier-A.pk-card, .tier-S.pk-card, .tier-SS.pk-card, .tier-SSS.pk-card { border-color: transparent; }
+.tier-A.pk-card { background: linear-gradient(155deg, var(--a), var(--b)) padding-box; }
 .pk-card { position: relative; z-index: 1; }
 .pk-frame { position: absolute; inset: 0; border-radius: 16px; overflow: hidden; z-index: 0;
   transform: rotateX(var(--rx)) rotateY(var(--ry)); }
@@ -117,11 +130,12 @@ body {
 .tier-S.pk-card {
   box-shadow: 0 0 22px #e7a6ff, 0 0 70px #c14cffee, 0 0 150px #f107a3aa, 0 0 230px #00e5ff77;
 }
-.w-S::before, .w-SS::before, .w-SSS::before {
-  inset: -70px; opacity: 1; border-radius: 50%; filter: blur(2px);
-  background: repeating-conic-gradient(from 0deg, #ffffff38 0 5deg, #0000 5deg 16deg);
-  mask: radial-gradient(closest-side, #000 35%, #0000 75%); animation: pk-rays 9s linear infinite;
-}
+/* The rays are real elements, not ::before: Chrome would not keep a rotating pseudo-element (and its
+   floating parent) on the compositor, and restyled the page every frame. */
+.w-S::before, .w-SS::before, .w-SSS::before { content: none; }
+.pk-rays, .pk-rays2 { position: absolute; pointer-events: none; z-index: -1; inset: -70px; border-radius: 50%; will-change: transform; }
+.pk-rays { filter: blur(2px); background: repeating-conic-gradient(from 0deg, #ffffff38 0 5deg, #0000 5deg 16deg);
+  mask: radial-gradient(closest-side, #000 35%, #0000 75%); animation: pk-rays 9s linear infinite; }
 
 /* SS: rainbow frame at speed, a huge multicolour halo, stars drifting up. */
 .w-SS { animation-duration: 2s; }
@@ -129,7 +143,7 @@ body {
 .tier-SS.pk-card {
   box-shadow: 0 0 26px #fff, 0 0 80px #ff66ccee, 0 0 170px #00c8ffcc, 0 0 260px #ffae0099;
 }
-.w-SS::before { animation-duration: 5s; background: repeating-conic-gradient(from 0deg, #ff66ff40 0 6deg, #0000 6deg 12deg, #66ffff40 12deg 18deg, #0000 18deg 24deg); }
+.w-SS .pk-rays { animation-duration: 5s; background: repeating-conic-gradient(from 0deg, #ff66ff40 0 6deg, #0000 6deg 12deg, #66ffff40 12deg 18deg, #0000 18deg 24deg); }
 .w-SS .pk-head::after, .w-SSS .pk-head::after {
   content: '✦ ✧ ✦ ✧ ✦'; position: absolute; left: 0; right: 0; top: -14px; text-align: center; letter-spacing: 10px;
   color: #fff; text-shadow: 0 0 6px #fff, 0 0 12px #ffd24a; animation: pk-stars 1.8s linear infinite;
@@ -141,10 +155,10 @@ body {
 .tier-SSS.pk-card { border-width: 8px;
   box-shadow: 0 0 30px #fff, 0 0 90px #ffd24a, 0 0 180px #ff66cc, 0 0 300px #00c8ffcc, 0 0 420px #ffd24a88;
 }
-.w-SSS::before { inset: -90px; animation: pk-rays 3.5s linear infinite;
+.w-SSS .pk-rays { inset: -90px; animation: pk-rays 3.5s linear infinite;
   background: repeating-conic-gradient(from 0deg, #ffd24a66 0 4deg, #0000 4deg 10deg, #ff66ff55 10deg 14deg, #0000 14deg 20deg); }
-.w-SSS::after { content: ''; inset: -70px; border-radius: 50%; left: auto; right: auto; bottom: auto; height: auto;
-  width: calc(100% + 140px); background: repeating-conic-gradient(from 0deg, #66ffff44 0 3deg, #0000 3deg 13deg);
+.w-SSS::after { content: none; }
+.pk-rays2 { background: repeating-conic-gradient(from 0deg, #66ffff44 0 3deg, #0000 3deg 13deg);
   mask: radial-gradient(closest-side, #000 30%, #0000 70%); animation: pk-rays-back 6s linear infinite; }
 .w-SSS .pk-head::after { content: '✦ ✧ ✦ ✧ ✦ ✧ ✦'; animation-duration: 1s; color: #fff8d6; }
 .pk-head { position: relative; }
@@ -159,11 +173,12 @@ body {
   background: conic-gradient(from 210deg at 35% 30%, #2d1b52, #7c3aed, #140b29, #a78bfa, #3b1f75, #0d0719, #6d28d9, #2d1b52);
   box-shadow: 0 0 10px #7c3aedaa, inset 0 0 0 1px #a78bfa77; }
 /* SS: flowing RGB with a glossy top. */
-@keyframes pk-rgb { to { background-position: 300% 0; } }
-.tier-SS .pk-tier { color: #fff; text-shadow: 0 1px 2px #0009; box-shadow: 0 0 10px #ffffffaa;
-  background: linear-gradient(90deg, #ff004c, #ffae00, #fff200, #00ff95, #00c8ff, #b300ff, #ff004c) 0 0 / 300% 100%;
+@keyframes pk-rgb { to { transform: translateX(-50%); } }
+.tier-SS .pk-tier { color: #fff; text-shadow: 0 1px 2px #0009; box-shadow: 0 0 10px #ffffffaa; background: #b300ff; isolation: isolate; }
+.tier-SS .pk-tier::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 600%; z-index: -1; will-change: transform;
+  background: linear-gradient(90deg, #ff004c, #ffae00, #fff200, #00ff95, #00c8ff, #b300ff, #ff004c, #ffae00, #fff200, #00ff95, #00c8ff, #b300ff, #ff004c);
   animation: pk-rgb 2s linear infinite; }
-.tier-SS .pk-tier::before { content: ''; position: absolute; inset: 0 0 48% 0; border-radius: 6px 6px 40% 40% / 6px 6px 30% 30%;
+.tier-SS .pk-tier::before { content: ''; position: absolute; inset: 0 0 48% 0; z-index: 1; border-radius: 6px 6px 40% 40% / 6px 6px 30% 30%;
   background: linear-gradient(#ffffffc0, #ffffff22); }
 /* SSS: burnished gold. */
 /* SSS: a dark gold-rimmed plate; the letters are slots with light pouring through (the canvas adds the shafts). */
@@ -172,15 +187,17 @@ body {
 
 /* SSS: light shafts through the badge slots are drawn on a canvas (src/lib/godrays.ts); gold dust drifts around. */
 .pk-rays-canvas { position: absolute; pointer-events: none; z-index: 4; }
-@keyframes pk-dust { to { background-position: 0 -41px, 11px -134px, 23px -201px, 5px -94px; } }
+@keyframes pk-dust { to { transform: translateY(-64px); } }
 @keyframes pk-twinkle { 50% { opacity: .55; } }
-.pk-dust { position: absolute; inset: -56px; pointer-events: none; z-index: 3;
-  background: radial-gradient(#ffe58a 0.8px, #0000 1.6px) 0 0 / 37px 41px, radial-gradient(#ffd24acc 0.6px, #0000 1.3px) 11px 7px / 53px 67px,
-    radial-gradient(#fff3b0 1px, #0000 1.9px) 23px 19px / 71px 67px, radial-gradient(#ffcf40 0.7px, #0000 1.4px) 5px 29px / 29px 47px;
-  mask: radial-gradient(closest-side, #000 60%, #0000 100%); animation: pk-dust 7s linear infinite, pk-twinkle 1.7s ease-in-out infinite; }
+.pk-dust { position: absolute; inset: -56px; pointer-events: none; z-index: 3; overflow: hidden;
+  mask: radial-gradient(closest-side, #000 60%, #0000 100%); animation: pk-twinkle 1.7s ease-in-out infinite; }
+.pk-dust i { position: absolute; left: 0; right: 0; top: 0; height: calc(100% + 64px); will-change: transform;
+  background: radial-gradient(#ffe58a 0.8px, #0000 1.6px) 0 0 / 37px 32px, radial-gradient(#ffd24acc 0.6px, #0000 1.3px) 11px 7px / 53px 64px,
+    radial-gradient(#fff3b0 1px, #0000 1.9px) 23px 19px / 71px 64px, radial-gradient(#ffcf40 0.7px, #0000 1.4px) 5px 29px / 29px 32px;
+  animation: pk-dust 7s linear infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   .pk-card, .pk-card::before, .pk-card::after, .pk-art, .pk-wrap, .pk-wrap::before, .pk-wrap::after, .pk-head::after,
-  .pk-tier, .pk-dust, .pk-frame, .pk-frame i { animation: none !important; transition: none; }
+  .pk-tier, .pk-tier::after, .pk-dust, .pk-dust i, .pk-frame, .pk-frame i, .pk-rays, .pk-rays2, .pk-art::before, .pk-art::after { animation: none !important; transition: none; }
   .pk-rays-canvas { display: none; }
 }
