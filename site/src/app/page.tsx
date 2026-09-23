@@ -30,11 +30,15 @@ export default async function Home({ searchParams }: PageProps<'/'>) {
         <p className="mt-3 text-zinc-400">
           TypeSafe&apos;s Jev never writes a word. Every few seconds it looks at its health, hunger, inventory and
           surroundings, and picks the next skill: chop wood, craft tools, mine, hunt, build, sleep, farm, explore. It
-          plays unattended from 21 to 25 September 2026, and every minute is recorded. The game is{' '}
+          played unattended from 21 to 23 September 2026, and every minute was recorded. The game is{' '}
           <a className="underline" href="https://content.luanti.org/packages/wuzzy/mineclone2/">VoxeLibre</a>, a free
           game in the style of Minecraft on the <a className="underline" href="https://www.luanti.org/">Luanti</a> engine.
-          The stream may pause now and then; when it does, it will be back as soon as possible.
         </p>
+      </section>
+      <section className="rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+        <strong className="font-semibold">This project was archived on 23 September 2026.</strong> Jev no longer plays;
+        the whole run stays here to watch. The recordings are a public dataset, free to use under CC BY-SA 4.0:{' '}
+        <a className="underline" href={`https://huggingface.co/datasets/${HF_REPO}`}>huggingface.co/datasets/{HF_REPO}</a>.
       </section>
       <Stats />
       <NowPlaying />
