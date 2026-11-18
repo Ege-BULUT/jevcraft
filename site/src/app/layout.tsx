@@ -13,6 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://jevcraft.vercel.app"),
+  verification: { google: "s66rd8O_x1saL6PLGpSpIPeHmGazHyTo27NTPkK-GJg" },
+  alternates: { canonical: "/" },
   title: "JevCraft",
   description: "TypeSafe's Jev plays VoxeLibre, a free block-world game, around the clock.",
 };
